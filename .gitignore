@@ -1,0 +1,42 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter specific
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# IDE
+.vscode/
+*.code-workspace
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# Generated
+*.g.dart
+*.freezed.dart
+
+# Environment
+.env
+.env.*
+*.local
+
+# Build
+/build/
+ios/Pods/
+ios/.symlinks/
+android/.gradle/
+android/local.properties

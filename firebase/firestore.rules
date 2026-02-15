@@ -1,0 +1,79 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────
+    // Users: 자기 문서만 읽기/쓰기
+    // ──────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ──────────────────────────────────────────
+    // Sessions: uid 기반 접근 제어
+    // ──────────────────────────────────────────
+    match /sessions/{sessionId} {
+      // 자기 세션만 읽기/생성/업데이트
+      allow read: if request.auth != null
+        && resource.data.uid == request.auth.uid;
+
+      allow create: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        // 필수 필드 검증
+        && request.resource.data.keys().hasAll([
+          'uid', 'dateKey', 'anchorTime', 'commuteType',
+          'startAt', 'anchorSource'
+        ])
+        // commuteType 유효값
+        && request.resource.data.commuteType in ['home', 'office']
+        // anchorSource 유효값
+        && request.resource.data.anchorSource in ['manual', 'calendar_selected'];
+
+      allow update: if request.auth != null
+        && resource.data.uid == request.auth.uid
+        // uid, dateKey, startAt은 변경 불가
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.startAt == resource.data.startAt;
+
+      allow delete: if false; // 삭제 금지
+
+      // ──────────────────────────────────────────
+      // Blocks: 세션의 하위 컬렉션
+      // ──────────────────────────────────────────
+      match /blocks/{blockId} {
+        // 부모 세션의 uid 확인
+        allow read: if request.auth != null
+          && get(/databases/$(database)/documents/sessions/$(sessionId)).data.uid
+             == request.auth.uid;
+
+        allow create: if request.auth != null
+          && get(/databases/$(database)/documents/sessions/$(sessionId)).data.uid
+             == request.auth.uid
+          // 필수 필드 검증
+          && request.resource.data.keys().hasAll([
+            'blockType', 'plannedMinutes', 'startAt', 'plannedEndAt'
+          ])
+          && request.resource.data.plannedMinutes > 0;
+
+        allow update: if request.auth != null
+          && get(/databases/$(database)/documents/sessions/$(sessionId)).data.uid
+             == request.auth.uid
+          // blockType, plannedMinutes, startAt, plannedEndAt은 변경 불가
+          && request.resource.data.blockType == resource.data.blockType
+          && request.resource.data.plannedMinutes == resource.data.plannedMinutes
+          && request.resource.data.startAt == resource.data.startAt
+          && request.resource.data.plannedEndAt == resource.data.plannedEndAt;
+
+        allow delete: if false; // 삭제 금지
+      }
+    }
+
+    // ──────────────────────────────────────────
+    // 기본: 나머지 모든 문서 접근 거부
+    // ──────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
