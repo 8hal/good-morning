@@ -110,7 +110,18 @@ class SuggestionCard extends StatelessWidget {
         if (_hasBlocks)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text('블록 구성', style: theme.textTheme.titleMedium),
+            child: Row(
+              children: [
+                Text('블록 구성', style: theme.textTheme.titleMedium),
+                const SizedBox(width: 8),
+                Text(
+                  '길게 눌러 순서 변경',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ],
+            ),
           ),
 
         // 블록 리스트 (드래그앤드롭)
@@ -131,7 +142,9 @@ class SuggestionCard extends StatelessWidget {
                   block: block,
                   index: index,
                   onDelete: isBusy ? null : () => onBlockDelete(index),
-                  onTimeEdit: isBusy ? null : () => _editBlockTime(context, index),
+                  onTimeChange: isBusy 
+                      ? null 
+                      : (minutes) => onBlockTimeUpdate(index, minutes),
                   isDragEnabled: !isBusy,
                 ),
               );
@@ -202,45 +215,6 @@ class SuggestionCard extends StatelessWidget {
     );
   }
 
-  Future<void> _editBlockTime(BuildContext context, int index) async {
-    final block = suggestion.blocks[index];
-    final controller = TextEditingController(text: block.minutes.toString());
-    
-    final result = await showDialog<int>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('${block.name} 시간 수정'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: '시간 (분)',
-            suffixText: '분',
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final minutes = int.tryParse(controller.text);
-              if (minutes != null && minutes > 0 && minutes <= 180) {
-                Navigator.pop(context, minutes);
-              }
-            },
-            child: const Text('확인'),
-          ),
-        ],
-      ),
-    );
-
-    if (result != null && result != block.minutes) {
-      onBlockTimeUpdate(index, result);
-    }
-  }
 }
 
 class _GreetingSection extends StatelessWidget {
@@ -294,20 +268,32 @@ class _GreetingSection extends StatelessWidget {
   }
 }
 
-class _BlockTile extends StatelessWidget {
+class _BlockTile extends StatefulWidget {
   final SuggestedBlock block;
   final int index;
   final VoidCallback? onDelete;
-  final VoidCallback? onTimeEdit;
+  final void Function(int minutes)? onTimeChange;
   final bool isDragEnabled;
 
   const _BlockTile({
     required this.block,
     required this.index,
     this.onDelete,
-    this.onTimeEdit,
+    this.onTimeChange,
     this.isDragEnabled = true,
   });
+
+  @override
+  State<_BlockTile> createState() => _BlockTileState();
+}
+
+class _BlockTileState extends State<_BlockTile> {
+  bool _isEditing = false;
+
+  void _updateTime(int delta) {
+    final newMinutes = (widget.block.minutes + delta).clamp(5, 120);
+    widget.onTimeChange?.call(newMinutes);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -318,11 +304,11 @@ class _BlockTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
           children: [
-            // 드래그 핸들
+            // 드래그 핸들 (6점 그립)
             Icon(
-              Icons.drag_handle,
+              Icons.drag_indicator,
               size: 20,
-              color: isDragEnabled
+              color: widget.isDragEnabled
                   ? theme.colorScheme.onSurfaceVariant
                   : theme.colorScheme.outline.withValues(alpha: 0.3),
             ),
@@ -331,49 +317,90 @@ class _BlockTile extends StatelessWidget {
             // 블록 이름
             Expanded(
               child: Text(
-                block.name,
+                widget.block.name,
                 style: theme.textTheme.bodyLarge,
               ),
             ),
             
-            // 시간 (탭하여 수정)
-            InkWell(
-              onTap: onTimeEdit,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${block.minutes}분',
-                      style: theme.textTheme.bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.w500),
-                    ),
-                    if (onTimeEdit != null) ...[
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.edit,
-                        size: 14,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ],
-                  ],
+            // 시간 편집 (인라인 스테퍼)
+            if (_isEditing) ...[
+              // 감소 버튼
+              IconButton(
+                icon: const Icon(Icons.remove, size: 18),
+                onPressed: widget.onTimeChange != null 
+                    ? () => _updateTime(-5) 
+                    : null,
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-            ),
+              const SizedBox(width: 4),
+              
+              // 현재 시간
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Text(
+                  '${widget.block.minutes}분',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              
+              // 증가 버튼
+              IconButton(
+                icon: const Icon(Icons.add, size: 18),
+                onPressed: widget.onTimeChange != null 
+                    ? () => _updateTime(5) 
+                    : null,
+                visualDensity: VisualDensity.compact,
+                style: IconButton.styleFrom(
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  foregroundColor: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 4),
+              
+              // 완료 버튼
+              TextButton(
+                onPressed: () => setState(() => _isEditing = false),
+                child: const Text('완료', style: TextStyle(fontSize: 12)),
+              ),
+            ] else ...[
+              // 시간 배지 (탭하여 편집 모드)
+              InkWell(
+                onTap: widget.onTimeChange != null
+                    ? () => setState(() => _isEditing = true)
+                    : null,
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.block.minutes}분',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(width: 8),
             
             // 삭제 버튼
             IconButton(
               icon: const Icon(Icons.close, size: 20),
-              onPressed: onDelete,
+              onPressed: widget.onDelete,
               visualDensity: VisualDensity.compact,
               tooltip: '삭제',
+              style: IconButton.styleFrom(
+                foregroundColor: theme.colorScheme.error.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
