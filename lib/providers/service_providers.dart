@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/block_engine.dart';
 import '../services/firestore_service.dart';
 import '../services/local_queue_service.dart';
+import '../services/morning_assistant_service.dart';
 import '../services/notification_service.dart';
 
 /// Firebase 초기화 성공 여부
@@ -31,4 +32,10 @@ final blockEngineProvider = Provider<BlockEngine>((ref) {
     notificationService: ref.watch(notificationServiceProvider),
     localQueueService: ref.watch(localQueueServiceProvider),
   );
+});
+
+/// MorningAssistantService 싱글톤 (Gemini 기반 루틴 어시스턴트)
+final morningAssistantServiceProvider =
+    Provider<MorningAssistantService>((ref) {
+  return MorningAssistantService();
 });

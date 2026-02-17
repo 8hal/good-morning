@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../screens/blocks/blocks_screen.dart';
 import '../screens/start/start_screen.dart';
 import '../screens/now/now_screen.dart';
 import '../screens/history/history_screen.dart';
+import '../screens/history/session_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 
 /// 탭 인덱스 ↔ 경로 매핑
@@ -80,9 +82,22 @@ class AppRouter {
         ],
       ),
       GoRoute(
+        path: '/history/:sessionId',
+        name: 'sessionDetail',
+        builder: (context, state) {
+          final sessionId = state.pathParameters['sessionId']!;
+          return SessionDetailScreen(sessionId: sessionId);
+        },
+      ),
+      GoRoute(
         path: '/now',
         name: 'now',
         builder: (context, state) => const NowScreen(),
+      ),
+      GoRoute(
+        path: '/blocks',
+        name: 'blocks',
+        builder: (context, state) => const BlocksScreen(),
       ),
     ],
   );

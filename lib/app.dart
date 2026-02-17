@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/service_providers.dart';
 import 'router/app_router.dart';
-import 'services/local_queue_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 앱 루트 위젯
 class GoodMorningApp extends ConsumerStatefulWidget {

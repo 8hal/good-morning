@@ -14,8 +14,16 @@ enum CommuteType {
 
   String toJson() => name;
 
-  static CommuteType fromJson(String value) =>
-      CommuteType.values.firstWhere((e) => e.name == value);
+  static CommuteType fromJson(String value) {
+    switch (value) {
+      case 'home':
+        return CommuteType.home;
+      case 'office':
+        return CommuteType.office;
+      default:
+        return CommuteType.office;
+    }
+  }
 }
 
 /// 블록 종료 후 시간 체감

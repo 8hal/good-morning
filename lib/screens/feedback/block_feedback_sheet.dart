@@ -8,14 +8,14 @@ import '../../models/enums.dart';
 ///
 /// 중립성: 유도 문구/색상 강조/축하 메시지 금지
 class BlockFeedbackSheet extends StatefulWidget {
-  final String blockType;
+  final String blockLabel;
   final int plannedMinutes;
   final void Function(TimeFeel timeFeel, int satisfaction) onSubmit;
   final TimeFeel? initialTimeFeel;
 
   const BlockFeedbackSheet({
     super.key,
-    required this.blockType,
+    required this.blockLabel,
     required this.plannedMinutes,
     required this.onSubmit,
     this.initialTimeFeel,
@@ -38,7 +38,8 @@ class _BlockFeedbackSheetState extends State<BlockFeedbackSheet> {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(24),
-      child: _timeFeel == null ? _buildTimeFeelStep() : _buildSatisfactionStep(),
+      child:
+          _timeFeel == null ? _buildTimeFeelStep() : _buildSatisfactionStep(),
     );
   }
 
@@ -47,17 +48,16 @@ class _BlockFeedbackSheetState extends State<BlockFeedbackSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '${widget.blockType} ${widget.plannedMinutes}분',
-          style: Theme.of(context).textTheme.headlineMedium,
+          '${widget.blockLabel} ${widget.plannedMinutes}분',
+          style: Theme.of(context).textTheme.headlineSmall,
         ),
-        const SizedBox(height: 8),
-        // 중립적 질문 — 유도 없이 사실만
+        const SizedBox(height: 12),
         const Text('시간이 어떻게 느껴졌나요?'),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: TimeFeel.values.map((feel) {
-            return ElevatedButton(
+            return FilledButton.tonal(
               onPressed: () => setState(() => _timeFeel = feel),
               child: Text(feel.label),
             );
@@ -68,26 +68,49 @@ class _BlockFeedbackSheetState extends State<BlockFeedbackSheet> {
   }
 
   Widget _buildSatisfactionStep() {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '${widget.blockType} ${widget.plannedMinutes}분',
-          style: Theme.of(context).textTheme.headlineMedium,
+          '${widget.blockLabel} ${widget.plannedMinutes}분',
+          style: theme.textTheme.headlineSmall,
         ),
-        const SizedBox(height: 8),
-        // 중립적 질문
+        const SizedBox(height: 12),
         const Text('만족도는?'),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(5, (i) {
             final score = i + 1;
-            return ElevatedButton(
+            return FilledButton.tonal(
               onPressed: () => widget.onSubmit(_timeFeel!, score),
-              child: Text('$score'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+              ),
+              child: Text('$score', style: const TextStyle(fontSize: 16)),
             );
           }),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('낮음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+              Text('높음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => setState(() => _timeFeel = null),
+          child: const Text('이전 단계로'),
         ),
       ],
     );

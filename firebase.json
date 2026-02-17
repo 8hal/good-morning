@@ -2,5 +2,38 @@
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "good-morning-472ae",
+          "appId": "1:168698631177:android:c0848b07c91a51102f94d8",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "good-morning-472ae",
+          "configurations": {
+            "android": "1:168698631177:android:c0848b07c91a51102f94d8"
+          }
+        }
+      }
+    }
   }
 }

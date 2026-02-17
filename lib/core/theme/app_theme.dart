@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// 앱 테마 — 중립적 디자인
-/// 실험 오염 방지: 강조색/축하색/유도 색상 금지
-/// 차분하고 기능적인 톤 유지
+/// 앱 테마 — Deep Focus (보라/남색)
+/// 생산성과 집중력을 강조하는 디자인
+/// 전문적이고 침착한 톤 유지
 class AppTheme {
   AppTheme._();
 
@@ -10,7 +10,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF607D8B), // Blue Grey — 중립적
+        seedColor: const Color(0xFF5E35B1), // Deep Purple — 집중력
         brightness: Brightness.light,
       ),
       // 중립적 타이포그래피
@@ -37,7 +37,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
         ),
       ),
-      // 버튼 스타일 — 중립적 (화려한 색상 금지)
+      // 버튼 스타일 — 집중력 강조
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(

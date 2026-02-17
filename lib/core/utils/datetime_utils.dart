@@ -41,4 +41,24 @@ class DateTimeUtils {
   static int minutesBetween(DateTime start, DateTime end) {
     return end.difference(start).inMinutes;
   }
+
+  /// 날짜를 그룹 라벨로 변환 ("오늘", "어제", "2월 14일 금요일")
+  static String formatDateGroup(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final dateOnly = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(dateOnly).inDays;
+
+    if (diff == 0) return '오늘';
+    if (diff == 1) return '어제';
+    return DateFormat('M월 d일 EEEE', 'ko_KR').format(dt);
+  }
+
+  /// 소요 시간 포맷 ("3시간 15분", "45분")
+  static String formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes % 60;
+    if (hours > 0) return '$hours시간 $minutes분';
+    return '$minutes분';
+  }
 }

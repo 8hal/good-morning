@@ -102,7 +102,8 @@ class UserBlockPresetService {
     if (targetIndex == -1) return;
 
     final target = presets.removeAt(targetIndex);
-    presets.insert(newOrder, target);
+    final clampedOrder = newOrder.clamp(0, presets.length);
+    presets.insert(clampedOrder, target);
 
     // 3. 모든 블록의 order 재설정
     for (int i = 0; i < presets.length; i++) {

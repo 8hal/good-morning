@@ -49,28 +49,72 @@ class _SessionFeedbackSheetState extends State<SessionFeedbackSheet> {
     }
   }
 
+  Widget _buildStepIndicator() {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(3, (i) {
+          final isActive = i == _step;
+          return Container(
+            width: isActive ? 24 : 8,
+            height: 8,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
   Widget _buildOverallStep() {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('루틴 종료', style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: 8),
+        _buildStepIndicator(),
+        Text('루틴 종료', style: theme.textTheme.headlineSmall),
+        const SizedBox(height: 12),
         const Text('오늘 아침 루틴의 전체 만족도는?'),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(5, (i) {
             final score = i + 1;
-            return ElevatedButton(
+            return FilledButton.tonal(
               onPressed: () {
                 setState(() {
                   _overall = score;
                   _step = 1;
                 });
               },
-              child: Text('$score'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+              ),
+              child: Text('$score', style: const TextStyle(fontSize: 16)),
             );
           }),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('낮음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+              Text('높음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+            ],
+          ),
         ),
       ],
     );
@@ -80,12 +124,13 @@ class _SessionFeedbackSheetState extends State<SessionFeedbackSheet> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _buildStepIndicator(),
         const Text('같은 구성을 내일도 하겠습니까?'),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            ElevatedButton(
+            FilledButton.tonal(
               onPressed: () {
                 setState(() {
                   _repeat = true;
@@ -94,7 +139,7 @@ class _SessionFeedbackSheetState extends State<SessionFeedbackSheet> {
               },
               child: const Text('예'),
             ),
-            ElevatedButton(
+            FilledButton.tonal(
               onPressed: () {
                 setState(() {
                   _repeat = false;
@@ -105,21 +150,28 @@ class _SessionFeedbackSheetState extends State<SessionFeedbackSheet> {
             ),
           ],
         ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => setState(() => _step = 0),
+          child: const Text('이전 단계로'),
+        ),
       ],
     );
   }
 
   Widget _buildEnergyStep() {
+    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        _buildStepIndicator(),
         const Text('시작 시 에너지 수준은?'),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: List.generate(5, (i) {
             final score = i + 1;
-            return ElevatedButton(
+            return FilledButton.tonal(
               onPressed: () {
                 widget.onSubmit(
                   overallSatisfaction: _overall!,
@@ -127,9 +179,32 @@ class _SessionFeedbackSheetState extends State<SessionFeedbackSheet> {
                   energyAtStart: score,
                 );
               },
-              child: Text('$score'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(48, 48),
+                padding: EdgeInsets.zero,
+              ),
+              child: Text('$score', style: const TextStyle(fontSize: 16)),
             );
           }),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('낮음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+              Text('높음',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: () => setState(() => _step = 1),
+          child: const Text('이전 단계로'),
         ),
       ],
     );

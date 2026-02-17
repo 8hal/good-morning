@@ -70,12 +70,35 @@ class FirestoreService {
         .update(updates);
   }
 
+  /// 세션 단건 조회 (ID 기반)
+  Future<Session> getSession(String sessionId) async {
+    final doc = await _db
+        .collection(AppConstants.sessionsCollection)
+        .doc(sessionId)
+        .get();
+    return Session.fromFirestore(doc);
+  }
+
   /// 현재 활성 세션 조회 (uid + endAt == null)
   Future<Session?> getActiveSession(String uid) async {
     final snapshot = await _db
         .collection(AppConstants.sessionsCollection)
         .where('uid', isEqualTo: uid)
         .where('endAt', isNull: true)
+        .orderBy('startAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) return null;
+    return Session.fromFirestore(snapshot.docs.first);
+  }
+
+  /// 마지막 완료 세션 조회 (AI 컨텍스트용)
+  Future<Session?> getLastSession(String uid) async {
+    final snapshot = await _db
+        .collection(AppConstants.sessionsCollection)
+        .where('uid', isEqualTo: uid)
+        .where('endAt', isNull: false)
         .orderBy('startAt', descending: true)
         .limit(1)
         .get();

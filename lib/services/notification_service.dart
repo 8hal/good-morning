@@ -160,7 +160,7 @@ class NotificationService {
     await _plugin.zonedSchedule(
       notificationId,
       '블록 종료',
-      '$blockType ${plannedMinutes}분 완료',
+      '$blockType $plannedMinutes분 완료',
       tzScheduledAt,
       details,
       payload: payload,

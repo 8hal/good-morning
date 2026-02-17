@@ -14,7 +14,7 @@ class BlockPreset {
   });
 
   /// 표시용 문자열 (예: "run 25분")
-  String get displayText => '$label ${defaultMinutes}분';
+  String get displayText => '$label $defaultMinutes분';
 }
 
 /// v0.1 블록 프리셋 정의

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "168698631177",
+    "project_id": "good-morning-472ae",
+    "storage_bucket": "good-morning-472ae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:168698631177:android:c0848b07c91a51102f94d8",
+        "android_client_info": {
+          "package_name": "com.example.good_morning"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3EzBrZ4unhkkjWrvXQ4t1opNo8MCVqJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

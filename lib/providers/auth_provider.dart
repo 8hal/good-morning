@@ -14,7 +14,8 @@ final authStateProvider = StreamProvider<User?>((ref) {
 });
 
 /// 현재 uid (로그인 안 됐으면 null)
-/// Google Sign-In 초기화를 피하기 위해 FirebaseAuth만 사용
+/// authStateProvider를 watch해서 로그인/로그아웃 시 자동 재계산
 final currentUidProvider = Provider<String?>((ref) {
-  return FirebaseAuth.instance.currentUser?.uid;
+  final authState = ref.watch(authStateProvider);
+  return authState.whenData((user) => user?.uid).value;
 });

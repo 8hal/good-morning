@@ -54,11 +54,11 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDummy_Android_API_Key_Replace_Later',
-    appId: '1:123456789:android:abcdef123456',
-    messagingSenderId: '123456789',
-    projectId: 'good-morning-demo',
-    storageBucket: 'good-morning-demo.appspot.com',
+    apiKey: 'AIzaSyD3EzBrZ4unhkkjWrvXQ4t1opNo8MCVqJU',
+    appId: '1:168698631177:android:c0848b07c91a51102f94d8',
+    messagingSenderId: '168698631177',
+    projectId: 'good-morning-472ae',
+    storageBucket: 'good-morning-472ae.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(

@@ -153,19 +153,23 @@ class _NowScreenState extends ConsumerState<NowScreen> {
       context: context,
       isDismissible: false,
       enableDrag: false,
-      builder: (context) {
+      builder: (sheetContext) {
         return BlockFeedbackSheet(
-          blockType: ended.blockType,
+          blockLabel: ended.displayLabel,
           plannedMinutes: ended.plannedMinutes,
           initialTimeFeel: presetTimeFeel,
           onSubmit: (timeFeel, satisfaction) async {
-            await engine.saveBlockFeedback(
-              sessionId: ended.sessionId,
-              blockId: ended.id,
-              timeFeel: timeFeel,
-              satisfaction: satisfaction,
-            );
-            if (context.mounted) Navigator.of(context).pop();
+            try {
+              await engine.saveBlockFeedback(
+                sessionId: ended.sessionId,
+                blockId: ended.id,
+                timeFeel: timeFeel,
+                satisfaction: satisfaction,
+              );
+            } catch (_) {
+              // 저장 실패해도 시트는 닫음 (로컬 큐에서 재시도)
+            }
+            if (sheetContext.mounted) Navigator.of(sheetContext).pop();
           },
         );
       },
@@ -334,7 +338,7 @@ class _NowScreenState extends ConsumerState<NowScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            block.blockType,
+                            block.displayLabel,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           const SizedBox(height: 4),
@@ -389,7 +393,7 @@ class _NowScreenState extends ConsumerState<NowScreen> {
                 // 버튼 영역
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton(
+                  child: FilledButton(
                     onPressed: _busy ? null : _manualEndBlock,
                     child: const Text('현재 블록 종료'),
                   ),
@@ -399,6 +403,10 @@ class _NowScreenState extends ConsumerState<NowScreen> {
                   width: double.infinity,
                   child: OutlinedButton(
                     onPressed: _busy ? null : _endRoutineNow,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                      side: BorderSide(color: Theme.of(context).colorScheme.error),
+                    ),
                     child: const Text('루틴 종료'),
                   ),
                 ),

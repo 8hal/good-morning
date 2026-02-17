@@ -6,6 +6,7 @@ class Block {
   final String id;
   final String sessionId;
   final String blockType;
+  final String displayLabel; // 사용자 친화적 이름 (예: "명상", "Run")
   final int plannedMinutes;
   final DateTime startAt;
   final DateTime plannedEndAt;
@@ -19,6 +20,7 @@ class Block {
     required this.id,
     required this.sessionId,
     required this.blockType,
+    required this.displayLabel,
     required this.plannedMinutes,
     required this.startAt,
     required this.plannedEndAt,
@@ -41,10 +43,12 @@ class Block {
   /// Firestore 문서 → Block
   factory Block.fromFirestore(DocumentSnapshot doc, String sessionId) {
     final data = doc.data() as Map<String, dynamic>;
+    final blockType = data['blockType'] as String;
     return Block(
       id: doc.id,
       sessionId: sessionId,
-      blockType: data['blockType'] as String,
+      blockType: blockType,
+      displayLabel: data['displayLabel'] as String? ?? blockType,
       plannedMinutes: data['plannedMinutes'] as int,
       startAt: (data['startAt'] as Timestamp).toDate(),
       plannedEndAt: (data['plannedEndAt'] as Timestamp).toDate(),
@@ -66,6 +70,7 @@ class Block {
   Map<String, dynamic> toFirestore() {
     return {
       'blockType': blockType,
+      'displayLabel': displayLabel,
       'plannedMinutes': plannedMinutes,
       'startAt': Timestamp.fromDate(startAt),
       'plannedEndAt': Timestamp.fromDate(plannedEndAt),
@@ -89,6 +94,7 @@ class Block {
       id: id,
       sessionId: sessionId,
       blockType: blockType,
+      displayLabel: displayLabel,
       plannedMinutes: plannedMinutes,
       startAt: startAt,
       plannedEndAt: plannedEndAt,

@@ -1,17 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../models/block_preset.dart';
 import '../../models/enums.dart';
-import '../../models/user_block_preset.dart';
+import '../../models/onboarding_state.dart';
 import '../../providers/active_block_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/morning_assistant_provider.dart';
+import '../../providers/onboarding_provider.dart';
 import '../../providers/routine_plan_provider.dart';
 import '../../providers/session_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../providers/settings_provider.dart';
 import '../../providers/user_block_preset_provider.dart';
+import 'widgets/chat_input.dart';
+import 'widgets/onboarding_flow.dart';
+import 'widgets/suggestion_card.dart';
 
-/// Start 화면 - 루틴 구성 및 시작
+/// Start 화면 - 대화형 온보딩 → AI 기반 스마트 루틴 제안
+///
+/// Phase 1: 대화형 온보딩 (출퇴근, 앵커 타임, 컨디션 질문)
+/// Phase 2: Gemini 루틴 제안 카드 + ChatInput
 class StartScreen extends ConsumerStatefulWidget {
   const StartScreen({super.key});
 
@@ -20,21 +30,19 @@ class StartScreen extends ConsumerStatefulWidget {
 }
 
 class _StartScreenState extends ConsumerState<StartScreen> {
-  TimeOfDay _anchorTime = const TimeOfDay(hour: 9, minute: 0);
-  CommuteType _commuteType = CommuteType.office;
-  final Set<int> _selectedIndexes = {};
   bool _isBusy = false;
+  String _defaultAnchorTime = '09:00';
+  bool _anchorTimeLoaded = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _ensureAuth();
+      _ensureAuthAndLoad();
     });
   }
 
-  Future<void> _ensureAuth() async {
-    setState(() => _isBusy = true);
+  Future<void> _ensureAuthAndLoad() async {
     try {
       final authService = ref.read(authServiceProvider);
       if (authService.currentUser == null) {
@@ -45,164 +53,63 @@ class _StartScreenState extends ConsumerState<StartScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('인증 실패: $e')),
       );
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
+      return;
     }
+
+    await _waitForProviders();
+    await _loadDefaultAnchorTime();
+  }
+
+  Future<void> _waitForProviders() async {
+    for (int i = 0; i < 50; i++) {
+      final settings = ref.read(settingsProvider);
+      final presets = ref.read(userBlockPresetsProvider);
+      if (!settings.isLoading && !presets.isLoading) break;
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+  }
+
+  Future<void> _loadDefaultAnchorTime() async {
+    if (_anchorTimeLoaded) return;
+    final uid = ref.read(currentUidProvider);
+    if (uid != null) {
+      try {
+        final firestoreService = ref.read(firestoreServiceProvider);
+        final lastSession = await firestoreService.getLastSession(uid);
+        if (lastSession != null && mounted) {
+          setState(() {
+            _defaultAnchorTime =
+                DateFormat('HH:mm').format(lastSession.anchorTime);
+          });
+        }
+      } catch (_) {}
+    }
+    _anchorTimeLoaded = true;
+  }
+
+  String get _defaultCommuteType {
+    final settings = ref.read(settingsProvider).value;
+    return settings?.defaultCommuteType.name ?? 'office';
   }
 
   Future<void> _pickAnchorTime() async {
+    final suggestion = ref.read(morningAssistantProvider).value;
+    if (suggestion == null) return;
+
+    final parts = suggestion.anchorTime.split(':');
+    final initialTime = TimeOfDay(
+      hour: int.tryParse(parts.elementAtOrNull(0) ?? '') ?? 9,
+      minute: int.tryParse(parts.elementAtOrNull(1) ?? '') ?? 0,
+    );
+
     final picked = await showTimePicker(
       context: context,
-      initialTime: _anchorTime,
+      initialTime: initialTime,
     );
     if (picked != null) {
-      setState(() => _anchorTime = picked);
-    }
-  }
-
-  DateTime _toTodayDateTime(TimeOfDay time) {
-    final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day, time.hour, time.minute);
-  }
-
-  Future<void> _createBlock() async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => const _BlockEditDialog(),
-    );
-
-    if (result == null) return;
-
-    final uid = ref.read(currentUidProvider);
-    if (uid == null) return;
-
-    setState(() => _isBusy = true);
-    try {
-      final service = ref.read(userBlockPresetServiceProvider);
-      await service.createPreset(
-        uid: uid,
-        name: result['name'] as String,
-        minutes: result['minutes'] as int,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('블록이 추가되었습니다.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('추가 실패: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
-    }
-  }
-
-  Future<void> _editBlock(UserBlockPreset preset) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => _BlockEditDialog(
-        initialName: preset.name,
-        initialMinutes: preset.minutes,
-      ),
-    );
-
-    if (result == null) return;
-
-    final uid = ref.read(currentUidProvider);
-    if (uid == null) return;
-
-    setState(() => _isBusy = true);
-    try {
-      final service = ref.read(userBlockPresetServiceProvider);
-      await service.updatePreset(
-        uid: uid,
-        presetId: preset.id,
-        name: result['name'] as String,
-        minutes: result['minutes'] as int,
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('블록이 수정되었습니다.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('수정 실패: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
-    }
-  }
-
-  Future<void> _deleteBlock(UserBlockPreset preset) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('블록 삭제'),
-        content: Text('"${preset.name}" 블록을 삭제하시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('삭제', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    final uid = ref.read(currentUidProvider);
-    if (uid == null) return;
-
-    setState(() => _isBusy = true);
-    try {
-      final service = ref.read(userBlockPresetServiceProvider);
-      await service.deletePreset(uid: uid, presetId: preset.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('블록이 삭제되었습니다.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('삭제 실패: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
-    }
-  }
-
-  Future<void> _reorderBlock(int oldIndex, int newIndex) async {
-    final uid = ref.read(currentUidProvider);
-    if (uid == null) return;
-
-    final presetsAsync = ref.read(userBlockPresetsProvider);
-    final presets = presetsAsync.value;
-    if (presets == null || presets.isEmpty) return;
-
-    final targetPreset = presets[oldIndex];
-    final adjustedNewIndex = newIndex > oldIndex ? newIndex - 1 : newIndex;
-
-    setState(() => _isBusy = true);
-    try {
-      final service = ref.read(userBlockPresetServiceProvider);
-      await service.reorderPreset(
-        uid: uid,
-        presetId: targetPreset.id,
-        newOrder: adjustedNewIndex,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('순서 변경 실패: $e')),
-      );
-    } finally {
-      if (mounted) setState(() => _isBusy = false);
+      final formatted =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      ref.read(morningAssistantProvider.notifier).setAnchorTime(formatted);
     }
   }
 
@@ -210,20 +117,22 @@ class _StartScreenState extends ConsumerState<StartScreen> {
     final uid = ref.read(currentUidProvider);
     if (uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('먼저 로그인해 주세요.')),
+        const SnackBar(content: Text('로그인 중입니다. 잠시 후 다시 시도해 주세요.')),
       );
       return;
     }
 
-    final userPresetsAsync = ref.read(userBlockPresetsProvider);
-    final userPresets = userPresetsAsync.value ?? [];
-    
-    final selectedBlocks = <BlockPreset>[];
-    for (int i = 0; i < userPresets.length; i++) {
-      if (_selectedIndexes.contains(i)) {
-        selectedBlocks.add(userPresets[i].toBlockPreset());
-      }
-    }
+    final suggestion = ref.read(morningAssistantProvider).value;
+    if (suggestion == null) return;
+
+    final selectedBlocks = suggestion.blocks
+        .where((b) => b.selected)
+        .map((b) => BlockPreset(
+              blockType: 'free',
+              defaultMinutes: b.minutes,
+              label: b.name,
+            ))
+        .toList();
 
     if (selectedBlocks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -235,12 +144,23 @@ class _StartScreenState extends ConsumerState<StartScreen> {
     setState(() => _isBusy = true);
     try {
       final engine = ref.read(blockEngineProvider);
-      final anchor = _toTodayDateTime(_anchorTime);
+
+      final anchorParts = suggestion.anchorTime.split(':');
+      final now = DateTime.now();
+      final anchorTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.tryParse(anchorParts.elementAtOrNull(0) ?? '') ?? 9,
+        int.tryParse(anchorParts.elementAtOrNull(1) ?? '') ?? 0,
+      );
+
+      final commuteType = CommuteType.fromJson(suggestion.commuteType);
 
       final session = await engine.startSession(
         uid: uid,
-        anchorTime: anchor,
-        commuteType: _commuteType,
+        anchorTime: anchorTime,
+        commuteType: commuteType,
         anchorSource: AnchorSource.manual,
       );
 
@@ -257,9 +177,10 @@ class _StartScreenState extends ConsumerState<StartScreen> {
         sessionId: session.id,
         preset: selectedBlocks.first,
       );
+      if (!mounted) return;
       if (firstBlock == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('첫 블록 시작에 실패했습니다.')),
+          const SnackBar(content: Text('블록 시작에 실패했습니다.')),
         );
         return;
       }
@@ -280,278 +201,164 @@ class _StartScreenState extends ConsumerState<StartScreen> {
     }
   }
 
+  Future<bool> _handleChatMessage(String message) async {
+    return ref.read(morningAssistantProvider.notifier).modify(message);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final uid = ref.watch(currentUidProvider);
     final activeSession = ref.watch(activeSessionProvider);
-    final userPresetsAsync = ref.watch(userBlockPresetsProvider);
+    final onboarding = ref.watch(onboardingProvider);
+    final suggestionAsync = ref.watch(morningAssistantProvider);
+    final theme = Theme.of(context);
+    final hasActiveSession = activeSession.value != null;
+    final isComplete = onboarding.phase == OnboardingPhase.complete;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Good Morning'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: _isBusy ? null : _createBlock,
-            tooltip: '블록 추가',
+      appBar: AppBar(title: const Text('Good Morning')),
+      body: Column(
+        children: [
+          // 진행 중인 루틴 배너
+          if (hasActiveSession)
+            Material(
+              color: theme.colorScheme.primaryContainer,
+              child: InkWell(
+                onTap: () => context.push('/now'),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(Icons.play_arrow,
+                          color: theme.colorScheme.onPrimaryContainer),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '진행 중인 루틴이 있습니다',
+                          style: TextStyle(
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      Icon(Icons.chevron_right,
+                          color: theme.colorScheme.onPrimaryContainer),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // 메인 콘텐츠
+          Expanded(
+            child: isComplete
+                // Phase 2: 루틴 제안 카드 (기존)
+                ? suggestionAsync.when(
+                    data: (suggestion) => SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: SuggestionCard(
+                        suggestion: suggestion,
+                        onAnchorTimeTap: _pickAnchorTime,
+                        onCommuteTypeChanged: (type) {
+                          ref
+                              .read(morningAssistantProvider.notifier)
+                              .setCommuteType(type);
+                        },
+                        onBlockToggle: (index) {
+                          ref
+                              .read(morningAssistantProvider.notifier)
+                              .toggleBlock(index);
+                        },
+                        onToggleSelectAll: () {
+                          ref
+                              .read(morningAssistantProvider.notifier)
+                              .toggleSelectAll();
+                        },
+                        onStart: _startRoutine,
+                        isBusy: _isBusy,
+                      ),
+                    ),
+                    loading: () => _buildLoadingState(theme),
+                    error: (e, _) => _buildErrorState(theme, e),
+                  )
+                // Phase 1: 대화형 온보딩
+                : OnboardingFlow(
+                    state: onboarding,
+                    defaultAnchorTime: _defaultAnchorTime,
+                    defaultCommuteType: _defaultCommuteType,
+                    onCommuteSelected: (type) => ref
+                        .read(onboardingProvider.notifier)
+                        .selectCommuteType(type),
+                    onAnchorConfirmed: (time) => ref
+                        .read(onboardingProvider.notifier)
+                        .confirmAnchorTime(time),
+                    onConditionSelected: (c) => ref
+                        .read(onboardingProvider.notifier)
+                        .selectCondition(c),
+                  ),
+          ),
+
+          // Phase 2에서만 ChatInput 표시
+          if (isComplete && suggestionAsync.hasValue)
+            ChatInput(
+              onSend: _handleChatMessage,
+              enabled: !_isBusy,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(ThemeData theme) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            '오늘의 루틴을 준비하고 있습니다...',
+            style: theme.textTheme.bodyLarge
+                ?.copyWith(color: theme.colorScheme.outline),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+    );
+  }
+
+  Widget _buildErrorState(ThemeData theme, Object error) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Anchor 시각 + 출근 형태
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time, size: 20),
-                        const SizedBox(width: 8),
-                        const Text('Anchor 시각:', style: TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: _isBusy ? null : _pickAnchorTime,
-                          child: Text(_anchorTime.format(context)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    SegmentedButton<CommuteType>(
-                      segments: const [
-                        ButtonSegment(value: CommuteType.office, label: Text('출근')),
-                        ButtonSegment(value: CommuteType.home, label: Text('재택')),
-                      ],
-                      selected: {_commuteType},
-                      onSelectionChanged: _isBusy ? null : (set) {
-                        setState(() => _commuteType = set.first);
-                      },
-                    ),
-                  ],
-                ),
-              ),
+            Icon(Icons.error_outline,
+                size: 48, color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            Text(
+              '루틴 제안을 불러오지 못했습니다',
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: theme.colorScheme.error),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '$error',
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.outline),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            
-            // 블록 목록 헤더
-            Row(
-              children: [
-                Text(
-                  '오늘의 루틴',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const Spacer(),
-                Text(
-                  '드래그로 순서 변경',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
-                ),
-              ],
+            FilledButton.icon(
+              onPressed: () {
+                ref.read(onboardingProvider.notifier).reset();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('다시 시도'),
             ),
-            const SizedBox(height: 8),
-            
-            // 블록 목록 (드래그 가능)
-            Expanded(
-              child: userPresetsAsync.when(
-                data: (presets) {
-                  if (presets.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.inbox, size: 64, color: Colors.grey),
-                          const SizedBox(height: 16),
-                          const Text('블록이 없습니다.', style: TextStyle(color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: _createBlock,
-                            icon: const Icon(Icons.add),
-                            label: const Text('첫 블록 추가하기'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  return ReorderableListView.builder(
-                    onReorder: _reorderBlock,
-                    itemCount: presets.length,
-                    itemBuilder: (context, index) {
-                      final preset = presets[index];
-                      final isSelected = _selectedIndexes.contains(index);
-                      
-                      return Card(
-                        key: ValueKey(preset.id),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        color: isSelected ? Colors.blue.shade50 : null,
-                        child: ListTile(
-                          leading: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.drag_handle, color: Colors.grey),
-                              const SizedBox(width: 8),
-                              Checkbox(
-                                value: isSelected,
-                                onChanged: _isBusy ? null : (checked) {
-                                  setState(() {
-                                    if (checked == true) {
-                                      _selectedIndexes.add(index);
-                                    } else {
-                                      _selectedIndexes.remove(index);
-                                    }
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                          title: Text(preset.name),
-                          subtitle: Text('${preset.minutes}분'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit, size: 20),
-                                onPressed: _isBusy ? null : () => _editBlock(preset),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, size: 20, color: Colors.red),
-                                onPressed: _isBusy ? null : () => _deleteBlock(preset),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('에러: $e', style: const TextStyle(color: Colors.red))),
-              ),
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // 루틴 시작 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isBusy ? null : _startRoutine,
-                child: const Text('루틴 시작'),
-              ),
-            ),
-            
-            if (activeSession.value != null) ...[
-              const SizedBox(height: 8),
-              OutlinedButton(
-                onPressed: () => context.push('/now'),
-                child: const Text('진행 중인 루틴 보기'),
-              ),
-            ],
           ],
         ),
       ),
-    );
-  }
-}
-
-/// 블록 생성/수정 다이얼로그
-class _BlockEditDialog extends StatefulWidget {
-  final String? initialName;
-  final int? initialMinutes;
-
-  const _BlockEditDialog({
-    this.initialName,
-    this.initialMinutes,
-  });
-
-  @override
-  State<_BlockEditDialog> createState() => _BlockEditDialogState();
-}
-
-class _BlockEditDialogState extends State<_BlockEditDialog> {
-  late final TextEditingController _nameController;
-  late final TextEditingController _minutesController;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.initialName ?? '');
-    _minutesController = TextEditingController(
-      text: widget.initialMinutes?.toString() ?? '10',
-    );
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _minutesController.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    final name = _nameController.text.trim();
-    final minutesText = _minutesController.text.trim();
-
-    if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('블록 이름을 입력하세요.')),
-      );
-      return;
-    }
-
-    final minutes = int.tryParse(minutesText);
-    if (minutes == null || minutes <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('유효한 시간(분)을 입력하세요.')),
-      );
-      return;
-    }
-
-    Navigator.pop(context, {'name': name, 'minutes': minutes});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isEdit = widget.initialName != null;
-
-    return AlertDialog(
-      title: Text(isEdit ? '블록 수정' : '블록 추가'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '블록 이름',
-              hintText: '예: 명상, 샤워',
-            ),
-            autofocus: true,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _minutesController,
-            decoration: const InputDecoration(
-              labelText: '시간 (분)',
-              hintText: '10',
-            ),
-            keyboardType: TextInputType.number,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('취소'),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: Text(isEdit ? '수정' : '추가'),
-        ),
-      ],
     );
   }
 }

@@ -1,141 +1,93 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../models/enums.dart';
+import '../../dev/seed_test_data.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/settings_provider.dart';
 
 /// Settings 화면
-/// - officeCommuteMinutes (출근 소요 시간)
-/// - 캘린더 사용 토글 (v0.1.5)
+/// - 블록 관리 바로가기
 /// - 로그아웃
-///
-/// Step 0/4 최소 구현:
-/// - officeCommuteMinutes 저장
-/// - 캘린더 사용 토글 저장
-/// - 로그아웃
-class SettingsScreen extends ConsumerStatefulWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
-  @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
+  Future<void> _seedTestData(WidgetRef ref, BuildContext context) async {
+    final uid = ref.read(currentUidProvider);
+    if (uid == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('로그인이 필요합니다.')),
+      );
+      return;
+    }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  final TextEditingController _commuteController = TextEditingController();
-  bool _calendarEnabled = false;
-  CommuteType _defaultCommuteType = CommuteType.office;
-  bool _initialized = false;
-
-  @override
-  void dispose() {
-    _commuteController.dispose();
-    super.dispose();
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('테스트 데이터 생성 중...')),
+      );
+      final count = await SeedTestData.seed(uid);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$count개 세션이 생성되었습니다. History 탭에서 확인하세요.')),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('오류: $e')),
+      );
+    }
   }
 
-  Future<void> _save() async {
-    final settingsAsync = ref.read(settingsProvider);
-    final current = settingsAsync.value;
-    if (current == null) return;
-
-    final commuteMinutes = int.tryParse(_commuteController.text.trim()) ?? 60;
-    final next = current.copyWith(
-      officeCommuteMinutes: commuteMinutes,
-      calendarEnabled: _calendarEnabled,
-      defaultCommuteType: _defaultCommuteType,
-    );
-    await ref.read(settingsProvider.notifier).updateSettings(next);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('저장되었습니다.')),
-    );
-  }
-
-  Future<void> _signOut() async {
+  Future<void> _signOut(WidgetRef ref, BuildContext context) async {
     await ref.read(authServiceProvider).signOut();
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('로그아웃되었습니다.')),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final settingsAsync = ref.watch(settingsProvider);
-
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('설정'),
       ),
-      body: settingsAsync.when(
-        data: (settings) {
-          if (!_initialized) {
-            _commuteController.text = settings.officeCommuteMinutes.toString();
-            _calendarEnabled = settings.calendarEnabled;
-            _defaultCommuteType = settings.defaultCommuteType;
-            _initialized = true;
-          }
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 블록 관리 바로가기
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.view_module),
-                    title: const Text('블록 관리'),
-                    subtitle: const Text('Start 화면에서 블록 관리'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.go('/start'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _commuteController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: '출근 소요 시간(분)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('캘린더 사용 (v0.1.5)'),
-                  value: _calendarEnabled,
-                  onChanged: (v) => setState(() => _calendarEnabled = v),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<CommuteType>(
-                  segments: const [
-                    ButtonSegment(value: CommuteType.office, label: Text('출근')),
-                    ButtonSegment(value: CommuteType.home, label: Text('재택')),
-                  ],
-                  selected: {_defaultCommuteType},
-                  onSelectionChanged: (set) {
-                    setState(() => _defaultCommuteType = set.first);
-                  },
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _save,
-                    child: const Text('설정 저장'),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  onPressed: _signOut,
-                  child: const Text('로그아웃'),
-                ),
-              ],
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 블록 관리 바로가기
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.view_module),
+                title: const Text('블록 관리'),
+                subtitle: const Text('블록 추가·수정·삭제·순서 변경'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/blocks'),
+              ),
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('설정 로드 실패: $e')),
+            // 개발용 테스트 데이터 버튼 (debug 모드에서만)
+            if (kDebugMode)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.bug_report),
+                  title: const Text('테스트 데이터 생성'),
+                  subtitle: const Text('최근 5일치 세션 + 블록'),
+                  trailing: const Icon(Icons.add_circle_outline),
+                  onTap: () => _seedTestData(ref, context),
+                ),
+              ),
+            const Spacer(),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => _signOut(ref, context),
+                child: const Text('로그아웃'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -111,6 +111,7 @@ class BlockEngine {
       id: _uuid.v4(),
       sessionId: sessionId,
       blockType: preset.blockType,
+      displayLabel: preset.label,
       plannedMinutes: preset.defaultMinutes,
       startAt: now,
       plannedEndAt: plannedEndAt,
@@ -224,7 +225,8 @@ class BlockEngine {
     // Firestore에서 기존 피드백 확인
     final blocks = await _firestoreService.getBlocks(sessionId);
     final block = blocks.where((b) => b.id == blockId).firstOrNull;
-    if (block != null && block.hasFeedback) return;
+    if (block == null) return; // 블록이 존재하지 않으면 무시
+    if (block.hasFeedback) return;
 
     final updates = {
       'timeFeel': timeFeel.toJson(),
