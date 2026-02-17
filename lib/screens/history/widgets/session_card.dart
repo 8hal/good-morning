@@ -19,6 +19,23 @@ class SessionCard extends StatelessWidget {
     return session.commuteType == CommuteType.home ? '🏠' : '🏢';
   }
 
+  String _energyIcon(int energy) {
+    switch (energy) {
+      case 1:
+        return '😫';
+      case 2:
+        return '😔';
+      case 3:
+        return '😐';
+      case 4:
+        return '😊';
+      case 5:
+        return '🔥';
+      default:
+        return '😐';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -32,6 +49,9 @@ class SessionCard extends StatelessWidget {
             session.endAt!.difference(session.startAt))
         : null;
 
+    final hasMeta = session.overallSatisfaction != null ||
+        session.energyAtStart != null;
+
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: InkWell(
@@ -42,21 +62,28 @@ class SessionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 출퇴근 타입
+              // 1행: 출퇴근 타입 + 상세보기
               Row(
                 children: [
                   Text(_commuteIcon, style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
-                  Text(
-                    session.commuteType.label,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
+                  Expanded(
+                    child: Text(
+                      session.commuteType.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: theme.colorScheme.outline,
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              // 시간 정보
+              // 2행: 시간 정보
               Row(
                 children: [
                   Icon(Icons.schedule,
@@ -77,27 +104,40 @@ class SessionCard extends StatelessWidget {
                   ],
                 ],
               ),
-              const SizedBox(height: 4),
-              // 상세보기 안내
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+              // 3행: 만족도 + 에너지 (있는 경우만)
+              if (hasMeta) ...[
+                const SizedBox(height: 8),
+                Row(
                   children: [
-                    Text(
-                      '상세보기',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
+                    if (session.overallSatisfaction != null) ...[
+                      Text(
+                        '⭐ ${session.overallSatisfaction}/5',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
-                      color: theme.colorScheme.primary,
-                    ),
+                    ],
+                    if (session.overallSatisfaction != null &&
+                        session.energyAtStart != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '·',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.outline,
+                          ),
+                        ),
+                      ),
+                    if (session.energyAtStart != null)
+                      Text(
+                        '${_energyIcon(session.energyAtStart!)} 에너지 ${session.energyAtStart}/5',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
                   ],
                 ),
-              ),
+              ],
             ],
           ),
         ),

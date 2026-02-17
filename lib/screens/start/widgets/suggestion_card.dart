@@ -9,8 +9,9 @@ class SuggestionCard extends StatelessWidget {
   final RoutineSuggestion suggestion;
   final VoidCallback onAnchorTimeTap;
   final ValueChanged<String> onCommuteTypeChanged;
-  final ValueChanged<int> onBlockToggle;
-  final VoidCallback onToggleSelectAll;
+  final ValueChanged<int> onBlockDelete;
+  final void Function(int from, int to) onBlockReorder;
+  final void Function(int index, int minutes) onBlockTimeUpdate;
   final VoidCallback onStart;
   final bool isBusy;
 
@@ -19,13 +20,14 @@ class SuggestionCard extends StatelessWidget {
     required this.suggestion,
     required this.onAnchorTimeTap,
     required this.onCommuteTypeChanged,
-    required this.onBlockToggle,
-    required this.onToggleSelectAll,
+    required this.onBlockDelete,
+    required this.onBlockReorder,
+    required this.onBlockTimeUpdate,
     required this.onStart,
     this.isBusy = false,
   });
 
-  int get _totalSelectedMinutes => suggestion.totalMinutes;
+  int get _totalMinutes => suggestion.blocks.fold(0, (sum, b) => sum + b.minutes);
 
   String _estimatedStartTime() {
     final parts = suggestion.anchorTime.split(':');
@@ -33,22 +35,15 @@ class SuggestionCard extends StatelessWidget {
     final anchorHour = int.tryParse(parts[0]) ?? 9;
     final anchorMinute = int.tryParse(parts[1]) ?? 0;
     final anchor = DateTime(2026, 1, 1, anchorHour, anchorMinute);
-    final start = anchor.subtract(Duration(minutes: _totalSelectedMinutes));
+    final start = anchor.subtract(Duration(minutes: _totalMinutes));
     return '${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')}';
   }
 
-  bool get _hasSelectedBlocks =>
-      suggestion.blocks.any((b) => b.selected);
-
-  bool get _allSelected =>
-      suggestion.blocks.isNotEmpty &&
-      suggestion.blocks.every((b) => b.selected);
+  bool get _hasBlocks => suggestion.blocks.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final selectedBlocks =
-        suggestion.blocks.where((b) => b.selected).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,32 +107,39 @@ class SuggestionCard extends StatelessWidget {
         const SizedBox(height: 12),
 
         // 블록 목록 헤더
-        if (suggestion.blocks.isNotEmpty)
+        if (_hasBlocks)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Row(
-              children: [
-                Text('블록 구성', style: theme.textTheme.titleMedium),
-                const Spacer(),
-                TextButton(
-                  onPressed: isBusy ? null : onToggleSelectAll,
-                  child: Text(_allSelected ? '전체 해제' : '전체 선택'),
-                ),
-              ],
-            ),
+            child: Text('블록 구성', style: theme.textTheme.titleMedium),
           ),
 
-        // 블록 리스트
-        ...List.generate(suggestion.blocks.length, (index) {
-          final block = suggestion.blocks[index];
-          return _BlockTile(
-            block: block,
-            onToggle: isBusy ? null : () => onBlockToggle(index),
-          );
-        }),
+        // 블록 리스트 (드래그앤드롭)
+        if (_hasBlocks)
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            onReorder: isBusy ? (_, __) {} : onBlockReorder,
+            itemCount: suggestion.blocks.length,
+            itemBuilder: (context, index) {
+              final block = suggestion.blocks[index];
+              return ReorderableDragStartListener(
+                key: ValueKey('block-${block.presetId}-$index'),
+                index: index,
+                enabled: !isBusy,
+                child: _BlockTile(
+                  block: block,
+                  index: index,
+                  onDelete: isBusy ? null : () => onBlockDelete(index),
+                  onTimeEdit: isBusy ? null : () => _editBlockTime(context, index),
+                  isDragEnabled: !isBusy,
+                ),
+              );
+            },
+          ),
 
         // 빈 프리셋 안내
-        if (suggestion.blocks.isEmpty)
+        if (!_hasBlocks)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
@@ -159,33 +161,31 @@ class SuggestionCard extends StatelessWidget {
           ),
 
         // 요약 + 시작 버튼
-        if (suggestion.blocks.isNotEmpty) ...[
+        if (_hasBlocks) ...[
           const Divider(height: 24),
-          if (_hasSelectedBlocks)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '${selectedBlocks.length}개 · $_totalSelectedMinutes분',
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '${_estimatedStartTime()} → ${suggestion.anchorTime}',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.colorScheme.outline),
-                  ),
-                ],
-              ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${suggestion.blocks.length}개 · $_totalMinutes분',
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${_estimatedStartTime()} → ${suggestion.anchorTime}',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.colorScheme.outline),
+                ),
+              ],
             ),
+          ),
           SizedBox(
             width: double.infinity,
             height: 48,
             child: FilledButton(
-              onPressed:
-                  (isBusy || !_hasSelectedBlocks) ? null : onStart,
+              onPressed: isBusy ? null : onStart,
               child: isBusy
                   ? const SizedBox(
                       width: 20,
@@ -200,6 +200,46 @@ class SuggestionCard extends StatelessWidget {
         ],
       ],
     );
+  }
+
+  Future<void> _editBlockTime(BuildContext context, int index) async {
+    final block = suggestion.blocks[index];
+    final controller = TextEditingController(text: block.minutes.toString());
+    
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('${block.name} 시간 수정'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: '시간 (분)',
+            suffixText: '분',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final minutes = int.tryParse(controller.text);
+              if (minutes != null && minutes > 0 && minutes <= 180) {
+                Navigator.pop(context, minutes);
+              }
+            },
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result != block.minutes) {
+      onBlockTimeUpdate(index, result);
+    }
   }
 }
 
@@ -256,11 +296,17 @@ class _GreetingSection extends StatelessWidget {
 
 class _BlockTile extends StatelessWidget {
   final SuggestedBlock block;
-  final VoidCallback? onToggle;
+  final int index;
+  final VoidCallback? onDelete;
+  final VoidCallback? onTimeEdit;
+  final bool isDragEnabled;
 
   const _BlockTile({
     required this.block,
-    this.onToggle,
+    required this.index,
+    this.onDelete,
+    this.onTimeEdit,
+    this.isDragEnabled = true,
   });
 
   @override
@@ -268,48 +314,68 @@ class _BlockTile extends StatelessWidget {
     final theme = Theme.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
-      color: block.selected
-          ? theme.colorScheme.primaryContainer.withOpacity(0.3)
-          : null,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onToggle,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            children: [
-              Checkbox(
-                value: block.selected,
-                onChanged: onToggle != null ? (_) => onToggle!() : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // 드래그 핸들
+            Icon(
+              Icons.drag_handle,
+              size: 20,
+              color: isDragEnabled
+                  ? theme.colorScheme.onSurfaceVariant
+                  : theme.colorScheme.outline.withValues(alpha: 0.3),
+            ),
+            const SizedBox(width: 12),
+            
+            // 블록 이름
+            Expanded(
+              child: Text(
+                block.name,
+                style: theme.textTheme.bodyLarge,
               ),
-              Expanded(
-                child: Text(
-                  block.name,
-                  style: theme.textTheme.bodyLarge?.copyWith(
-                    decoration: block.selected
-                        ? null
-                        : TextDecoration.lineThrough,
-                    color: block.selected
-                        ? null
-                        : theme.colorScheme.outline,
-                  ),
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            ),
+            
+            // 시간 (탭하여 수정)
+            InkWell(
+              onTap: onTimeEdit,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  '${block.minutes}분',
-                  style: theme.textTheme.bodyMedium
-                      ?.copyWith(fontWeight: FontWeight.w500),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${block.minutes}분',
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w500),
+                    ),
+                    if (onTimeEdit != null) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.edit,
+                        size: 14,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 8),
+            
+            // 삭제 버튼
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: onDelete,
+              visualDensity: VisualDensity.compact,
+              tooltip: '삭제',
+            ),
+          ],
         ),
       ),
     );

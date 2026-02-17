@@ -32,7 +32,6 @@ class MorningAssistantService {
                 description: '프리셋 ID (없으면 빈 문자열)', nullable: true),
             'name': Schema.string(description: '블록 이름'),
             'minutes': Schema.integer(description: '분 단위 소요 시간'),
-            'selected': Schema.boolean(description: '선택 여부'),
           },
           optionalProperties: ['presetId'],
         ),
@@ -74,16 +73,15 @@ class MorningAssistantService {
 5. greeting은 시간대+컨디션에 맞는 자연스러운 한국어로 작성해.
 6. reasoning은 왜 이 구성을 추천하는지 간단히 설명해.
 7. 컨디션 반영:
-   - "good": 모든 블록 활성화 (selected: true), 에너지 넘치는 메시지
+   - "good": 모든 블록 활성화, 에너지 넘치는 메시지
    - "normal": 기본 구성, 보통의 메시지
-   - "tired": 무거운 블록(운동 등) 축소/비활성화 (selected: false), 가벼운 블록(명상/스트레칭) 우선, 위로 메시지
+   - "tired": 무거운 블록(운동 등) 축소/제거, 가벼운 블록(명상/스트레칭) 우선, 위로 메시지
 8. 수정 요청이 오면 현재 제안을 기반으로 변경사항만 반영해:
    - "앵커를 X시로" → anchorTime 변경
    - "재택이야" / "출근이야" → commuteType 변경
-   - "X 추가해줘" → 프리셋에서 찾아서 blocks에 추가 (selected: true)
-   - "X 빼줘" → 해당 블록의 selected를 false로
+   - "X 추가해줘" → 프리셋에서 찾아서 blocks에 추가
+   - "X 빼줘" → 해당 블록 제거
    - "X를 Y분으로" → 해당 블록의 minutes 변경
-   - "전부 선택" / "전부 해제" → 모든 블록의 selected 변경
 9. 블록 추가 요청 시 프리셋 목록에 없으면 name과 minutes를 사용자 요청대로 설정하고 presetId는 빈 문자열로.
 ''';
 
@@ -220,16 +218,29 @@ class MorningAssistantService {
 
       final response = await _chat!.sendMessage(Content.text(prompt));
       
-      // #region agent log
-      debugPrint('[DEBUG-MODIFY-D] Modification response received: ${response.text?.substring(0, 100) ?? "null"}...');
-      // #endregion
-      
       final text = response.text;
+      
+      // #region agent log
+      debugPrint('[DEBUG-MODIFY-D] Response received: length=${text?.length ?? 0}');
+      if (text != null && text.length > 200) {
+        debugPrint('[DEBUG-MODIFY-D] First 200 chars: ${text.substring(0, 200)}');
+      } else {
+        debugPrint('[DEBUG-MODIFY-D] Full text: $text');
+      }
+      // #endregion
 
-      if (text == null || text.isEmpty) return null;
+      if (text == null || text.isEmpty) {
+        debugPrint('[DEBUG-MODIFY-E] 빈 응답 — null 반환');
+        return null;
+      }
 
+      debugPrint('[DEBUG-MODIFY-E] JSON 파싱 시작...');
       final json = jsonDecode(text) as Map<String, dynamic>;
-      return RoutineSuggestion.fromJson(json);
+      debugPrint('[DEBUG-MODIFY-F] JSON 파싱 성공, keys: ${json.keys.toList()}');
+      
+      final result = RoutineSuggestion.fromJson(json);
+      debugPrint('[DEBUG-MODIFY-G] fromJson 성공: blocks=${result.blocks.length}');
+      return result;
     } catch (e) {
       // #region agent log
       debugPrint('[DEBUG-MODIFY-ERROR] Gemini 수정 호출 실패: $e');
@@ -334,7 +345,6 @@ class MorningAssistantService {
               presetId: p.id,
               name: p.name,
               minutes: p.minutes,
-              selected: true,
             ))
         .toList();
 

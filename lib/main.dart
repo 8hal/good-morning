@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import 'app.dart';
@@ -24,6 +25,9 @@ Future<void> main() async {
   // 타임존 초기화 (Asia/Seoul)
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation('Asia/Seoul'));
+
+  // 한국어 날짜 포맷 초기화
+  await initializeDateFormatting('ko_KR');
 
   // 알림 서비스 초기화
   final notificationService = NotificationService();

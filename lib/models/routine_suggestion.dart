@@ -17,7 +17,7 @@ class RoutineSuggestion {
   });
 
   int get totalMinutes =>
-      blocks.where((b) => b.selected).fold(0, (sum, b) => sum + b.minutes);
+      blocks.fold(0, (sum, b) => sum + b.minutes);
 
   /// JSON -> RoutineSuggestion
   factory RoutineSuggestion.fromJson(Map<String, dynamic> json) {
@@ -70,13 +70,11 @@ class SuggestedBlock {
   final String? presetId;
   final String name;
   final int minutes;
-  final bool selected;
 
   const SuggestedBlock({
     this.presetId,
     required this.name,
     required this.minutes,
-    this.selected = true,
   });
 
   factory SuggestedBlock.fromJson(Map<String, dynamic> json) {
@@ -84,7 +82,6 @@ class SuggestedBlock {
       presetId: json['presetId'] as String?,
       name: json['name'] as String? ?? '',
       minutes: (json['minutes'] as num?)?.toInt() ?? 15,
-      selected: json['selected'] as bool? ?? true,
     );
   }
 
@@ -93,7 +90,6 @@ class SuggestedBlock {
       'presetId': presetId,
       'name': name,
       'minutes': minutes,
-      'selected': selected,
     };
   }
 
@@ -101,13 +97,11 @@ class SuggestedBlock {
     String? presetId,
     String? name,
     int? minutes,
-    bool? selected,
   }) {
     return SuggestedBlock(
       presetId: presetId ?? this.presetId,
       name: name ?? this.name,
       minutes: minutes ?? this.minutes,
-      selected: selected ?? this.selected,
     );
   }
 }

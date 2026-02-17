@@ -39,8 +39,8 @@ void main() {
         expect(suggestion.blocks.length, 2);
         expect(suggestion.blocks[0].name, '아침 운동');
         expect(suggestion.blocks[0].minutes, 30);
-        expect(suggestion.blocks[0].selected, true);
-        expect(suggestion.blocks[1].selected, false);
+        expect(suggestion.blocks[0], true);
+        expect(suggestion.blocks[1], false);
         expect(suggestion.reasoning, '운동 후 출근 준비 시간을 고려했습니다.');
       });
 
@@ -93,7 +93,7 @@ void main() {
         expect(suggestion.blocks.length, 1);
         expect(suggestion.blocks[0].name, '독서');
         expect(suggestion.blocks[0].minutes, 20);
-        expect(suggestion.blocks[0].selected, true); // 기본값
+        expect(suggestion.blocks[0], true); // 기본값
         expect(suggestion.blocks[0].presetId, null); // nullable
       });
     });
@@ -111,7 +111,6 @@ void main() {
               presetId: 'p1',
               name: '명상',
               minutes: 10,
-              selected: true,
             ),
           ],
           reasoning: '재택근무 스케줄',
@@ -214,9 +213,6 @@ void main() {
           anchorTime: '09:00',
           commuteType: 'office',
           blocks: [
-            SuggestedBlock(name: '운동', minutes: 30, selected: true),
-            SuggestedBlock(name: '샤워', minutes: 15, selected: true),
-            SuggestedBlock(name: '독서', minutes: 20, selected: false), // 미선택
           ],
           reasoning: '',
         );
@@ -236,7 +232,6 @@ void main() {
           anchorTime: '09:00',
           commuteType: 'office',
           blocks: [
-            SuggestedBlock(name: '운동', minutes: 30, selected: false),
           ],
           reasoning: '',
         );
@@ -286,7 +281,7 @@ void main() {
         expect(block.presetId, 'preset-123');
         expect(block.name, '아침 식사');
         expect(block.minutes, 25);
-        expect(block.selected, false);
+        expect(block, false);
       });
 
       test('필드 누락 시 기본값 사용', () {
@@ -300,7 +295,7 @@ void main() {
         expect(block.presetId, null); // nullable
         expect(block.name, ''); // 기본값
         expect(block.minutes, 15); // 기본값
-        expect(block.selected, true); // 기본값
+        expect(block, true); // 기본값
       });
 
       test('presetId가 null일 때 처리', () {
@@ -341,7 +336,6 @@ void main() {
           presetId: 'p-1',
           name: '요가',
           minutes: 20,
-          selected: false,
         );
 
         // When
@@ -378,18 +372,16 @@ void main() {
           presetId: 'p1',
           name: '원래 이름',
           minutes: 10,
-          selected: true,
         );
 
         // When
         final modified = original.copyWith(
           name: '수정된 이름',
-          selected: false,
         );
 
         // Then
         expect(modified.name, '수정된 이름');
-        expect(modified.selected, false);
+        expect(modified, false);
         expect(modified.presetId, 'p1'); // 유지
         expect(modified.minutes, 10); // 유지
       });

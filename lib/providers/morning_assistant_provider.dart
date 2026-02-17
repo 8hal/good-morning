@@ -123,11 +123,15 @@ class MorningAssistantNotifier
   /// 자연어 수정 요청
   Future<bool> modify(String userMessage) async {
     final current = state.value;
-    if (current == null) return false;
+    if (current == null) {
+      debugPrint('[MODIFY-PROVIDER] state.value가 null — 수정 불가');
+      return false;
+    }
 
     try {
       final assistant = _ref.read(morningAssistantServiceProvider);
       final presets = _ref.read(userBlockPresetsProvider).value ?? [];
+      debugPrint('[MODIFY-PROVIDER] 서비스 호출 시작: presets=${presets.length}');
 
       final updated = await assistant.modifySuggestion(
         userMessage: userMessage,
@@ -135,36 +139,84 @@ class MorningAssistantNotifier
         presets: presets,
       );
 
-      if (updated != null && mounted) {
-        state = AsyncValue.data(updated);
+      debugPrint('[MODIFY-PROVIDER] 서비스 응답: updated=${updated != null}, mounted=$mounted');
+
+      if (updated != null) {
+        debugPrint('[MODIFY-PROVIDER] 새 제안: blocks=${updated.blocks.length}, '
+            'anchor=${updated.anchorTime}, commute=${updated.commuteType}');
+        
+        // 수동 변경사항 보존: 기존 블록과 이름 매칭하여 수정된 시간 유지
+        final mergedBlocks = updated.blocks.map((newBlock) {
+          final existingBlock = current.blocks.firstWhere(
+            (b) => b.name == newBlock.name,
+            orElse: () => newBlock,
+          );
+          
+          // 이름이 같은 블록이 있고, AI가 기본 시간을 제안했다면 수동 변경 시간 유지
+          if (existingBlock != newBlock && existingBlock.name == newBlock.name) {
+            return newBlock.copyWith(minutes: existingBlock.minutes);
+          }
+          return newBlock;
+        }).toList();
+
+        final merged = updated.copyWith(blocks: mergedBlocks);
+        
+        for (final b in merged.blocks) {
+          debugPrint('[MODIFY-PROVIDER]   블록: ${b.name} ${b.minutes}분');
+        }
+
+        state = AsyncValue.data(merged);
+        debugPrint('[MODIFY-PROVIDER] state 업데이트 완료 (수동 변경사항 보존) ✓');
         return true;
       }
+
+      debugPrint('[MODIFY-PROVIDER] 업데이트 실패: updated=${updated != null}, mounted=$mounted');
       return false;
-    } catch (e) {
-      debugPrint('수정 요청 실패: $e');
+    } catch (e, st) {
+      debugPrint('[MODIFY-PROVIDER] 예외 발생: $e');
+      debugPrint('[MODIFY-PROVIDER] 스택: ${st.toString().split('\n').take(5).join('\n')}');
       return false;
     }
   }
 
-  /// 로컬에서 블록 선택 토글 (Gemini 호출 없이)
-  void toggleBlock(int index) {
+  /// 로컬에서 블록 순서 변경
+  void reorderBlock(int from, int to) {
     final current = state.value;
-    if (current == null || index < 0 || index >= current.blocks.length) return;
+    if (current == null ||
+        from < 0 ||
+        to < 0 ||
+        from >= current.blocks.length ||
+        to >= current.blocks.length) {
+      return;
+    }
 
     final blocks = List<SuggestedBlock>.from(current.blocks);
-    blocks[index] = blocks[index].copyWith(selected: !blocks[index].selected);
+    final block = blocks.removeAt(from);
+    blocks.insert(to, block);
     state = AsyncValue.data(current.copyWith(blocks: blocks));
   }
 
-  /// 로컬에서 전체 선택/해제
-  void toggleSelectAll() {
+  /// 로컬에서 블록 삭제
+  void deleteBlock(int index) {
     final current = state.value;
-    if (current == null || current.blocks.isEmpty) return;
+    if (current == null || index < 0 || index >= current.blocks.length) {
+      return;
+    }
 
-    final allSelected = current.blocks.every((b) => b.selected);
-    final blocks = current.blocks
-        .map((b) => b.copyWith(selected: !allSelected))
-        .toList();
+    final blocks = List<SuggestedBlock>.from(current.blocks);
+    blocks.removeAt(index);
+    state = AsyncValue.data(current.copyWith(blocks: blocks));
+  }
+
+  /// 로컬에서 블록 시간 수정
+  void updateBlockTime(int index, int minutes) {
+    final current = state.value;
+    if (current == null || index < 0 || index >= current.blocks.length) {
+      return;
+    }
+
+    final blocks = List<SuggestedBlock>.from(current.blocks);
+    blocks[index] = blocks[index].copyWith(minutes: minutes);
     state = AsyncValue.data(current.copyWith(blocks: blocks));
   }
 

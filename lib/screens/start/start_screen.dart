@@ -125,8 +125,7 @@ class _StartScreenState extends ConsumerState<StartScreen> {
     final suggestion = ref.read(morningAssistantProvider).value;
     if (suggestion == null) return;
 
-    final selectedBlocks = suggestion.blocks
-        .where((b) => b.selected)
+    final blocks = suggestion.blocks
         .map((b) => BlockPreset(
               blockType: 'free',
               defaultMinutes: b.minutes,
@@ -134,9 +133,9 @@ class _StartScreenState extends ConsumerState<StartScreen> {
             ))
         .toList();
 
-    if (selectedBlocks.isEmpty) {
+    if (blocks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('최소 1개 블록을 선택해 주세요.')),
+        const SnackBar(content: Text('최소 1개 블록이 필요합니다.')),
       );
       return;
     }
@@ -175,7 +174,7 @@ class _StartScreenState extends ConsumerState<StartScreen> {
 
       final firstBlock = await engine.startBlock(
         sessionId: session.id,
-        preset: selectedBlocks.first,
+        preset: blocks.first,
       );
       if (!mounted) return;
       if (firstBlock == null) {
@@ -187,7 +186,7 @@ class _StartScreenState extends ConsumerState<StartScreen> {
 
       ref.read(activeSessionProvider.notifier).setSession(session);
       ref.read(activeBlockProvider.notifier).setBlock(firstBlock);
-      ref.read(routinePlanProvider.notifier).setPlan(selectedBlocks);
+      ref.read(routinePlanProvider.notifier).setPlan(blocks);
 
       if (!mounted) return;
       context.push('/now');
@@ -264,15 +263,20 @@ class _StartScreenState extends ConsumerState<StartScreen> {
                               .read(morningAssistantProvider.notifier)
                               .setCommuteType(type);
                         },
-                        onBlockToggle: (index) {
+                        onBlockDelete: (index) {
                           ref
                               .read(morningAssistantProvider.notifier)
-                              .toggleBlock(index);
+                              .deleteBlock(index);
                         },
-                        onToggleSelectAll: () {
+                        onBlockReorder: (from, to) {
                           ref
                               .read(morningAssistantProvider.notifier)
-                              .toggleSelectAll();
+                              .reorderBlock(from, to);
+                        },
+                        onBlockTimeUpdate: (index, minutes) {
+                          ref
+                              .read(morningAssistantProvider.notifier)
+                              .updateBlockTime(index, minutes);
                         },
                         onStart: _startRoutine,
                         isBusy: _isBusy,

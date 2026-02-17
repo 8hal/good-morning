@@ -151,18 +151,16 @@ void main() {
         // Given - 프리셋 기반 블록 생성 검증
 
         // When
-        // fallback은 모든 프리셋을 selected: true로 변환
         final expectedBlocks = presets.map((p) => SuggestedBlock(
               presetId: p.id,
               name: p.name,
               minutes: p.minutes,
-              selected: true,
             ));
 
         // Then
         expect(expectedBlocks.length, 2);
-        expect(expectedBlocks.first.selected, true);
-        expect(expectedBlocks.last.selected, true);
+        expect(expectedBlocks.first, true);
+        expect(expectedBlocks.last, true);
       });
     });
 

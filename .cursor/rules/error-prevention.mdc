@@ -1,0 +1,33 @@
+---
+description: 반복되는 에러 패턴을 방지하기 위한 체크리스트
+alwaysApply: true
+---
+
+# 에러 방지 규칙
+
+## Firestore 쿼리 작성 시
+
+복합 쿼리(where 2개 이상 + orderBy) 작성 후 반드시:
+1. `firestore.indexes.json`에 composite index 추가
+2. `firebase deploy --only firestore:indexes` 실행
+3. 인덱스 빌드 완료까지 1~3분 대기
+
+## Dart/Flutter 코드 작성 시
+
+### null safety
+- Firestore 데이터 파싱 시 모든 필드에 `as Type?` + `?? defaultValue` 적용
+- enum의 `fromJson`에는 반드시 `default` case 포함
+
+### async 컨텍스트
+- `await` 이후 `BuildContext` 사용 전 `if (!mounted) return;` 체크
+- `StatelessWidget`에서는 `context.mounted` 사용
+
+### import 정리
+- 파일 작성 완료 후 미사용 import 제거
+- `flutter analyze`로 확인
+
+## 디버그 로그
+
+- `debugPrint`는 핵심 분기점 3~5개에만 배치
+- 배포 전 `#region agent log` ~ `#endregion` 블록 일괄 제거
+- 에러 핸들링: catch 블록에서 `에러 타입 + 메시지 + 위치` 3가지 포함
