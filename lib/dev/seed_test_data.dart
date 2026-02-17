@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../core/constants/app_constants.dart';
 import '../core/utils/datetime_utils.dart';
@@ -6,20 +7,185 @@ import '../models/block.dart';
 import '../models/enums.dart';
 import '../models/session.dart';
 
+/// 시딩 결과
+class SeedResult {
+  final int successCount;
+  final int totalCount;
+  final List<String> logs;
+  final String? error;
+  final String? stackTrace;
+
+  const SeedResult({
+    required this.successCount,
+    required this.totalCount,
+    required this.logs,
+    this.error,
+    this.stackTrace,
+  });
+
+  bool get hasError => error != null;
+  bool get isFullSuccess => successCount == totalCount && !hasError;
+}
+
 /// 개발용 테스트 데이터 시딩
 /// Settings 화면에서 호출
 class SeedTestData {
   static const _uuid = Uuid();
   static final _db = FirebaseFirestore.instance;
 
-  /// 최근 5일치 세션 + 블록 생성
-  static Future<int> seed(String uid) async {
-    final now = DateTime.now();
-    var createdCount = 0;
+  static void _log(List<String> logs, String message) {
+    logs.add(message);
+    debugPrint('[SEED] $message');
+  }
 
-    final sessionsData = [
+  /// 최근 5일치 세션 + 블록 생성 (단계별 로깅 포함)
+  static Future<SeedResult> seed(String uid) async {
+    final logs = <String>[];
+    var successCount = 0;
+
+    try {
+      _log(logs, '시작 — uid: $uid');
+
+      // Firestore 연결 확인
+      _log(logs, 'Firestore 연결 확인 중...');
+      try {
+        await _db.collection(AppConstants.sessionsCollection).limit(1).get();
+        _log(logs, 'Firestore 연결 OK');
+      } catch (e) {
+        _log(logs, 'Firestore 연결 실패: $e');
+        return SeedResult(
+          successCount: 0,
+          totalCount: 5,
+          logs: logs,
+          error: 'Firestore 연결 실패: $e',
+        );
+      }
+
+      final now = DateTime.now();
+      _log(logs, '현재 시각: $now');
+
+      final sessionsData = _buildTestSessions();
+      _log(logs, '시드 데이터 ${sessionsData.length}개 세션 준비 완료');
+
+      for (var i = 0; i < sessionsData.length; i++) {
+        final seed = sessionsData[i];
+        final label = '세션 ${i + 1}/${sessionsData.length} '
+            '(${seed.daysAgo}일 전, ${seed.commuteType.label})';
+
+        try {
+          _log(logs, '$label 생성 시작...');
+
+          final sessionDate = DateTime(
+            now.year,
+            now.month,
+            now.day - seed.daysAgo,
+            seed.startHour,
+            seed.startMin,
+          );
+          final dateKey = DateTimeUtils.toDateKey(sessionDate);
+          _log(logs, '  dateKey: $dateKey, startAt: $sessionDate');
+
+          // 블록 데이터 구성
+          var cursor = sessionDate;
+          final blocks = <Block>[];
+          for (final bs in seed.blocks) {
+            final blockId = _uuid.v4();
+            final blockEnd = cursor.add(
+              Duration(minutes: bs.actualMin ?? bs.plannedMinutes),
+            );
+            blocks.add(Block(
+              id: blockId,
+              sessionId: '',
+              blockType: bs.blockType,
+              displayLabel: bs.displayLabel,
+              plannedMinutes: bs.plannedMinutes,
+              startAt: cursor,
+              plannedEndAt: cursor.add(Duration(minutes: bs.plannedMinutes)),
+              endAt: blockEnd,
+              endedBy: EndedBy.auto_,
+              actualMinutes: bs.actualMin,
+              timeFeel: bs.timeFeel,
+              satisfaction: bs.satisfaction,
+            ));
+            cursor = blockEnd;
+          }
+          _log(logs, '  블록 ${blocks.length}개 준비 (종료: $cursor)');
+
+          // 세션 저장
+          final sessionId = _uuid.v4();
+          final session = Session(
+            id: sessionId,
+            uid: uid,
+            dateKey: dateKey,
+            anchorTime: sessionDate.add(const Duration(hours: 3)),
+            commuteType: seed.commuteType,
+            startAt: sessionDate,
+            endAt: cursor,
+            overallSatisfaction: seed.overallSatisfaction,
+            energyAtStart: seed.energyAtStart,
+            anchorSource: AnchorSource.manual,
+          );
+
+          _log(logs, '  세션 문서 저장 중... (id: ${sessionId.substring(0, 8)}...)');
+          final sessionRef = _db
+              .collection(AppConstants.sessionsCollection)
+              .doc(sessionId);
+          await sessionRef.set(session.toFirestore());
+          _log(logs, '  세션 문서 저장 OK');
+
+          // 블록 저장
+          for (var j = 0; j < blocks.length; j++) {
+            final block = blocks[j];
+            final updatedBlock = Block(
+              id: block.id,
+              sessionId: sessionId,
+              blockType: block.blockType,
+              displayLabel: block.displayLabel,
+              plannedMinutes: block.plannedMinutes,
+              startAt: block.startAt,
+              plannedEndAt: block.plannedEndAt,
+              endAt: block.endAt,
+              endedBy: block.endedBy,
+              actualMinutes: block.actualMinutes,
+              timeFeel: block.timeFeel,
+              satisfaction: block.satisfaction,
+            );
+            await sessionRef
+                .collection(AppConstants.blocksSubcollection)
+                .doc(block.id)
+                .set(updatedBlock.toFirestore());
+          }
+          _log(logs, '  블록 ${blocks.length}개 저장 OK');
+          _log(logs, '$label 완료 ✓');
+          successCount++;
+        } catch (e, st) {
+          _log(logs, '$label 실패 ✗: $e');
+          _log(logs, '  스택: ${st.toString().split('\n').take(3).join(' → ')}');
+        }
+      }
+
+      _log(logs, '완료 — $successCount/${sessionsData.length} 세션 성공');
+      return SeedResult(
+        successCount: successCount,
+        totalCount: sessionsData.length,
+        logs: logs,
+      );
+    } catch (e, st) {
+      _log(logs, '치명적 오류: $e');
+      return SeedResult(
+        successCount: successCount,
+        totalCount: 5,
+        logs: logs,
+        error: e.toString(),
+        stackTrace: st.toString(),
+      );
+    }
+  }
+
+  static List<_SessionSeed> _buildTestSessions() {
+    return const [
       // 오늘
-      const _SessionSeed(
+      _SessionSeed(
         daysAgo: 0,
         commuteType: CommuteType.home,
         startHour: 6,
@@ -35,7 +201,7 @@ class SeedTestData {
         ],
       ),
       // 어제
-      const _SessionSeed(
+      _SessionSeed(
         daysAgo: 1,
         commuteType: CommuteType.office,
         startHour: 7,
@@ -52,7 +218,7 @@ class SeedTestData {
         ],
       ),
       // 2일 전
-      const _SessionSeed(
+      _SessionSeed(
         daysAgo: 2,
         commuteType: CommuteType.home,
         startHour: 6,
@@ -68,7 +234,7 @@ class SeedTestData {
         ],
       ),
       // 3일 전
-      const _SessionSeed(
+      _SessionSeed(
         daysAgo: 3,
         commuteType: CommuteType.office,
         startHour: 7,
@@ -82,7 +248,7 @@ class SeedTestData {
         ],
       ),
       // 5일 전
-      const _SessionSeed(
+      _SessionSeed(
         daysAgo: 5,
         commuteType: CommuteType.home,
         startHour: 6,
@@ -97,82 +263,6 @@ class SeedTestData {
         ],
       ),
     ];
-
-    for (final seed in sessionsData) {
-      final sessionDate = DateTime(
-        now.year, now.month, now.day - seed.daysAgo,
-        seed.startHour, seed.startMin,
-      );
-      final dateKey = DateTimeUtils.toDateKey(sessionDate);
-
-      // 세션 종료 시간 계산 (블록 합산)
-      var cursor = sessionDate;
-      final blocks = <Block>[];
-      for (final bs in seed.blocks) {
-        final blockId = _uuid.v4();
-        final blockEnd = cursor.add(Duration(minutes: bs.actualMin ?? bs.plannedMinutes));
-        blocks.add(Block(
-          id: blockId,
-          sessionId: '', // 아래에서 설정
-          blockType: bs.blockType,
-          displayLabel: bs.displayLabel,
-          plannedMinutes: bs.plannedMinutes,
-          startAt: cursor,
-          plannedEndAt: cursor.add(Duration(minutes: bs.plannedMinutes)),
-          endAt: blockEnd,
-          endedBy: EndedBy.auto_,
-          actualMinutes: bs.actualMin,
-          timeFeel: bs.timeFeel,
-          satisfaction: bs.satisfaction,
-        ));
-        cursor = blockEnd;
-      }
-
-      final sessionId = _uuid.v4();
-      final session = Session(
-        id: sessionId,
-        uid: uid,
-        dateKey: dateKey,
-        anchorTime: sessionDate.add(const Duration(hours: 3)),
-        commuteType: seed.commuteType,
-        startAt: sessionDate,
-        endAt: cursor,
-        overallSatisfaction: seed.overallSatisfaction,
-        energyAtStart: seed.energyAtStart,
-        anchorSource: AnchorSource.manual,
-      );
-
-      // Firestore에 저장
-      final sessionRef = _db
-          .collection(AppConstants.sessionsCollection)
-          .doc(sessionId);
-      await sessionRef.set(session.toFirestore());
-
-      for (final block in blocks) {
-        final updatedBlock = Block(
-          id: block.id,
-          sessionId: sessionId,
-          blockType: block.blockType,
-          displayLabel: block.displayLabel,
-          plannedMinutes: block.plannedMinutes,
-          startAt: block.startAt,
-          plannedEndAt: block.plannedEndAt,
-          endAt: block.endAt,
-          endedBy: block.endedBy,
-          actualMinutes: block.actualMinutes,
-          timeFeel: block.timeFeel,
-          satisfaction: block.satisfaction,
-        );
-        await sessionRef
-            .collection(AppConstants.blocksSubcollection)
-            .doc(block.id)
-            .set(updatedBlock.toFirestore());
-      }
-
-      createdCount++;
-    }
-
-    return createdCount;
   }
 }
 

@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../dev/debug_log.dart';
 import '../models/onboarding_state.dart';
 import '../models/user_settings.dart';
 import 'auth_provider.dart';
@@ -69,62 +68,21 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   /// Q3: 컨디션 선택 → Gemini 호출 트리거
   Future<void> selectCondition(UserCondition condition) async {
-    // #region agent log
-    dlog('onboarding_provider.dart:selectCondition:entry', 'selectCondition called', {
-      'condition': condition.name,
-      'commuteType': state.commuteType,
-      'anchorTime': state.anchorTime,
-      'currentPhase': state.phase.name,
-    }, 'H1');
-    // #endregion
-
     state = state.copyWith(
       condition: condition,
       phase: OnboardingPhase.loading,
     );
 
-    try {
-      // #region agent log
-      dlog('onboarding_provider.dart:selectCondition:beforeAwait', 'about to call loadSuggestionWithContext', {
-        'commuteType': state.commuteType,
-        'anchorTime': state.anchorTime,
-      }, 'H1');
-      // #endregion
+    await _ref
+        .read(morningAssistantProvider.notifier)
+        .loadSuggestionWithContext(
+          commuteType: state.commuteType!,
+          anchorTime: state.anchorTime!,
+          condition: condition,
+        );
 
-      await _ref
-          .read(morningAssistantProvider.notifier)
-          .loadSuggestionWithContext(
-            commuteType: state.commuteType!,
-            anchorTime: state.anchorTime!,
-            condition: condition,
-          );
-
-      // #region agent log
-      dlog('onboarding_provider.dart:selectCondition:afterAwait', 'loadSuggestionWithContext completed', {
-        'mounted': mounted,
-      }, 'H2');
-      // #endregion
-
-      if (mounted) {
-        state = state.copyWith(phase: OnboardingPhase.complete);
-        // #region agent log
-        dlog('onboarding_provider.dart:selectCondition:phaseSet', 'phase set to complete', {
-          'phase': state.phase.name,
-        }, 'H2');
-        // #endregion
-      } else {
-        // #region agent log
-        dlog('onboarding_provider.dart:selectCondition:notMounted', 'NOT MOUNTED - phase not set', {}, 'H2');
-        // #endregion
-      }
-    } catch (e, st) {
-      // #region agent log
-      dlog('onboarding_provider.dart:selectCondition:ERROR', 'uncaught exception in selectCondition', {
-        'error': e.toString(),
-        'errorType': e.runtimeType.toString(),
-        'stackTrace': st.toString().substring(0, 500),
-      }, 'H1');
-      // #endregion
+    if (mounted) {
+      state = state.copyWith(phase: OnboardingPhase.complete);
     }
   }
 

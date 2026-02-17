@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../dev/debug_log.dart';
 import '../../../models/onboarding_state.dart';
 import 'question_card.dart';
 
@@ -166,11 +165,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               const QuestionOption(label: '😴 피곤', value: 'tired'),
             ],
             onSelected: (v) {
-              // #region agent log
-              dlog('onboarding_flow.dart:conditionSelected', 'condition option tapped', {
-                'selectedValue': v,
-              }, 'H5');
-              // #endregion
               final condition =
                   UserCondition.values.firstWhere((c) => c.name == v);
               widget.onConditionSelected(condition);

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../dev/debug_log.dart';
 import '../../models/block_preset.dart';
 import '../../models/enums.dart';
 import '../../models/onboarding_state.dart';
@@ -214,17 +213,6 @@ class _StartScreenState extends ConsumerState<StartScreen> {
     final theme = Theme.of(context);
     final hasActiveSession = activeSession.value != null;
     final isComplete = onboarding.phase == OnboardingPhase.complete;
-
-    // #region agent log
-    dlog('start_screen.dart:build', 'build called', {
-      'onboardingPhase': onboarding.phase.name,
-      'isComplete': isComplete,
-      'suggestionIsLoading': suggestionAsync.isLoading,
-      'suggestionHasValue': suggestionAsync.hasValue,
-      'suggestionHasError': suggestionAsync.hasError,
-      'suggestionError': suggestionAsync.hasError ? suggestionAsync.error.toString() : null,
-    }, 'H3');
-    // #endregion
 
     return Scaffold(
       appBar: AppBar(title: const Text('Good Morning')),

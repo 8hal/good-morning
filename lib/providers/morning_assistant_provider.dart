@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../dev/debug_log.dart';
 import '../models/onboarding_state.dart';
 import '../models/routine_suggestion.dart';
 import '../models/user_settings.dart';
@@ -87,14 +86,6 @@ class MorningAssistantNotifier
     required String anchorTime,
     required UserCondition condition,
   }) async {
-    // #region agent log
-    dlog('morning_assistant_provider.dart:loadSuggestionWithContext:entry', 'loadSuggestionWithContext called', {
-      'commuteType': commuteType,
-      'anchorTime': anchorTime,
-      'condition': condition.name,
-    }, 'H3');
-    // #endregion
-
     state = const AsyncValue.loading();
 
     try {
@@ -104,14 +95,6 @@ class MorningAssistantNotifier
       final settings =
           _ref.read(settingsProvider).value ?? const UserSettings();
       final presets = _ref.read(userBlockPresetsProvider).value ?? [];
-
-      // #region agent log
-      dlog('morning_assistant_provider.dart:loadSuggestionWithContext:context', 'context loaded', {
-        'uid': uid,
-        'presetsCount': presets.length,
-        'settingsCommute': settings.defaultCommuteType.name,
-      }, 'H4');
-      // #endregion
 
       final lastSession =
           uid != null ? await firestoreService.getLastSession(uid) : null;
@@ -126,26 +109,10 @@ class MorningAssistantNotifier
         condition: condition,
       );
 
-      // #region agent log
-      dlog('morning_assistant_provider.dart:loadSuggestionWithContext:result', 'suggestion generated', {
-        'blocksCount': suggestion.blocks.length,
-        'greeting': suggestion.greeting,
-        'mounted': mounted,
-      }, 'H3');
-      // #endregion
-
       if (mounted) {
         state = AsyncValue.data(suggestion);
       }
     } catch (e, st) {
-      // #region agent log
-      dlog('morning_assistant_provider.dart:loadSuggestionWithContext:ERROR', 'exception caught', {
-        'error': e.toString(),
-        'errorType': e.runtimeType.toString(),
-        'mounted': mounted,
-      }, 'H3');
-      // #endregion
-
       debugPrint('온보딩 기반 루틴 제안 생성 실패: $e');
       if (mounted) {
         state = AsyncValue.error(e, st);

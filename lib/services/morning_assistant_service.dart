@@ -102,7 +102,12 @@ class MorningAssistantService {
     // #endregion
     
     if (presets.isEmpty) {
-      return _emptyPresetsFallback(now);
+      return _emptyPresetsFallback(
+        now: now,
+        commuteType: commuteType,
+        anchorTime: anchorTime,
+        condition: condition,
+      );
     }
 
     final contextText = _buildContext(
@@ -150,6 +155,9 @@ class MorningAssistantService {
           lastSession: lastSession,
           presets: presets,
           settings: settings,
+          commuteType: commuteType,
+          anchorTime: anchorTime,
+          condition: condition,
         );
       }
 
@@ -167,6 +175,9 @@ class MorningAssistantService {
         lastSession: lastSession,
         presets: presets,
         settings: settings,
+        commuteType: commuteType,
+        anchorTime: anchorTime,
+        condition: condition,
       );
     }
   }
@@ -303,13 +314,20 @@ class MorningAssistantService {
     Session? lastSession,
     required List<UserBlockPreset> presets,
     required UserSettings settings,
+    String? commuteType,
+    String? anchorTime,
+    UserCondition? condition,
   }) {
     final timeStr = DateFormat('HH:mm').format(now);
-    final commuteType =
-        lastSession?.commuteType.name ?? settings.defaultCommuteType.name;
-    final anchorTime = lastSession != null
-        ? DateFormat('HH:mm').format(lastSession.anchorTime)
-        : '09:00';
+    
+    // 온보딩 값 우선, 없으면 마지막 세션, 없으면 설정 기본값
+    final actualCommuteType = commuteType ??
+        lastSession?.commuteType.name ??
+        settings.defaultCommuteType.name;
+    final actualAnchorTime = anchorTime ??
+        (lastSession != null
+            ? DateFormat('HH:mm').format(lastSession.anchorTime)
+            : '09:00');
 
     final blocks = presets
         .map((p) => SuggestedBlock(
@@ -320,27 +338,57 @@ class MorningAssistantService {
             ))
         .toList();
 
-    final greeting = _greetingForTime(now);
+    // 컨디션에 따른 greeting
+    String greeting;
+    if (condition == UserCondition.tired) {
+      greeting = '피곤한 아침이네요. 가볍게 시작해볼까요?';
+    } else if (condition == UserCondition.good) {
+      greeting = '오늘 컨디션이 좋으시네요!';
+    } else {
+      greeting = _greetingForTime(now);
+    }
 
     return RoutineSuggestion(
       greeting: greeting,
       wakeUpTime: timeStr,
-      anchorTime: anchorTime,
-      commuteType: commuteType,
+      anchorTime: actualAnchorTime,
+      commuteType: actualCommuteType,
       blocks: blocks,
       reasoning: '오프라인 모드: ${lastSession != null ? "마지막 루틴 기반 제안" : "기본 설정 기반 제안"}',
     );
   }
 
-  RoutineSuggestion _emptyPresetsFallback(DateTime now) {
+  RoutineSuggestion _emptyPresetsFallback({
+    required DateTime now,
+    String? commuteType,
+    String? anchorTime,
+    UserCondition? condition,
+  }) {
     final timeStr = DateFormat('HH:mm').format(now);
+    
+    // 온보딩 값이 있으면 사용, 없으면 기본값
+    final actualCommuteType = commuteType ?? 'office';
+    final actualAnchorTime = anchorTime ?? '09:00';
+    
+    // 컨디션에 따른 greeting
+    String greeting;
+    if (condition == UserCondition.tired) {
+      greeting = '피곤한 아침이네요. 가볍게 시작해볼까요?';
+    } else if (condition == UserCondition.good) {
+      greeting = '오늘 컨디션이 좋으시네요!';
+    } else if (condition != null) {
+      greeting = _greetingForTime(now);
+    } else {
+      greeting = _greetingForTime(now);
+    }
+    
     return RoutineSuggestion(
-      greeting: _greetingForTime(now),
+      greeting: greeting,
       wakeUpTime: timeStr,
-      anchorTime: '09:00',
-      commuteType: 'office',
+      anchorTime: actualAnchorTime,
+      commuteType: actualCommuteType,
       blocks: [],
-      reasoning: '블록 프리셋이 없습니다. 설정에서 블록을 추가해 주세요.',
+      reasoning: '블록 프리셋이 없습니다. 아래 입력창에서 "20분 명상 추가해줘"처럼 요청하세요.',
     );
   }
 
