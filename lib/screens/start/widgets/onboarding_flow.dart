@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../dev/debug_log.dart';
 import '../../../models/onboarding_state.dart';
 import 'question_card.dart';
 
@@ -165,6 +166,11 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
               const QuestionOption(label: '😴 피곤', value: 'tired'),
             ],
             onSelected: (v) {
+              // #region agent log
+              dlog('onboarding_flow.dart:conditionSelected', 'condition option tapped', {
+                'selectedValue': v,
+              }, 'H5');
+              // #endregion
               final condition =
                   UserCondition.values.firstWhere((c) => c.name == v);
               widget.onConditionSelected(condition);
@@ -232,7 +238,7 @@ class _GreetingBubble extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             theme.colorScheme.primaryContainer,
-            theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+            theme.colorScheme.primaryContainer.withOpacity(0.6),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -342,7 +348,7 @@ class _AnchorTimeQuestion extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: isPrimary
                 ? Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                    color: theme.colorScheme.primary.withOpacity(0.5),
                     width: 1.5,
                   )
                 : null,

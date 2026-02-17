@@ -218,7 +218,7 @@ class _GreetingSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
-      color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+      color: theme.colorScheme.primaryContainer.withOpacity(0.3),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -269,7 +269,7 @@ class _BlockTile extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
       color: block.selected
-          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.3)
+          ? theme.colorScheme.primaryContainer.withOpacity(0.3)
           : null,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),

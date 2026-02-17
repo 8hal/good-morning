@@ -83,7 +83,7 @@ class QuestionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
             border: isDefault
                 ? Border.all(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                    color: theme.colorScheme.primary.withOpacity(0.5),
                     width: 1.5,
                   )
                 : null,
@@ -136,7 +136,7 @@ class AnsweredChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.6),
+        color: theme.colorScheme.primaryContainer.withOpacity(0.6),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(

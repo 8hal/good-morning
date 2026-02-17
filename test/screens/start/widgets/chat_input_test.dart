@@ -204,15 +204,12 @@ void main() {
 
     testWidgets('enabled=false 시 입력/전송 비활성화', (tester) async {
       // Given
-      String? sentMessage;
-
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
             body: ChatInput(
               enabled: false, // 비활성화
               onSend: (message) async {
-                sentMessage = message;
                 return true;
               },
             ),
