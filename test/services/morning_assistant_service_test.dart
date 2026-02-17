@@ -147,10 +147,8 @@ void main() {
         expect(expectedAnchorTime, '09:30');
       });
 
-      test('프리셋 모두 선택된 상태로 블록 생성', () {
-        // Given - 프리셋 기반 블록 생성 검증
-
-        // When
+      test('프리셋 기반 블록 생성 검증', () {
+        // Given
         final expectedBlocks = presets.map((p) => SuggestedBlock(
               presetId: p.id,
               name: p.name,
@@ -159,8 +157,8 @@ void main() {
 
         // Then
         expect(expectedBlocks.length, 2);
-        expect(expectedBlocks.first, true);
-        expect(expectedBlocks.last, true);
+        expect(expectedBlocks.first.name, '명상'); // order 0
+        expect(expectedBlocks.last.name, '운동'); // order 1
       });
     });
 

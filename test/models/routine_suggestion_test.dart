@@ -39,8 +39,7 @@ void main() {
         expect(suggestion.blocks.length, 2);
         expect(suggestion.blocks[0].name, '아침 운동');
         expect(suggestion.blocks[0].minutes, 30);
-        expect(suggestion.blocks[0], true);
-        expect(suggestion.blocks[1], false);
+        expect(suggestion.blocks[1].name, '샤워');
         expect(suggestion.reasoning, '운동 후 출근 준비 시간을 고려했습니다.');
       });
 
@@ -93,7 +92,6 @@ void main() {
         expect(suggestion.blocks.length, 1);
         expect(suggestion.blocks[0].name, '독서');
         expect(suggestion.blocks[0].minutes, 20);
-        expect(suggestion.blocks[0], true); // 기본값
         expect(suggestion.blocks[0].presetId, null); // nullable
       });
     });
@@ -205,7 +203,7 @@ void main() {
     });
 
     group('totalMinutes', () {
-      test('선택된 블록의 시간만 합산', () {
+      test('모든 블록의 시간 합산', () {
         // Given
         final suggestion = RoutineSuggestion(
           greeting: 'test',
@@ -213,6 +211,9 @@ void main() {
           anchorTime: '09:00',
           commuteType: 'office',
           blocks: [
+            SuggestedBlock(name: '운동', minutes: 30),
+            SuggestedBlock(name: '샤워', minutes: 15),
+            SuggestedBlock(name: '독서', minutes: 20),
           ],
           reasoning: '',
         );
@@ -220,19 +221,18 @@ void main() {
         // When
         final total = suggestion.totalMinutes;
 
-        // Then - 30 + 15 = 45 (독서 20분은 제외)
-        expect(total, 45);
+        // Then - 30 + 15 + 20 = 65
+        expect(total, 65);
       });
 
-      test('선택된 블록이 없으면 0 반환', () {
+      test('블록이 없으면 0 반환', () {
         // Given
         final suggestion = RoutineSuggestion(
           greeting: 'test',
           wakeUpTime: '06:00',
           anchorTime: '09:00',
           commuteType: 'office',
-          blocks: [
-          ],
+          blocks: [],
           reasoning: '',
         );
 
@@ -271,7 +271,6 @@ void main() {
           'presetId': 'preset-123',
           'name': '아침 식사',
           'minutes': 25,
-          'selected': false,
         };
 
         // When
@@ -281,7 +280,6 @@ void main() {
         expect(block.presetId, 'preset-123');
         expect(block.name, '아침 식사');
         expect(block.minutes, 25);
-        expect(block, false);
       });
 
       test('필드 누락 시 기본값 사용', () {
@@ -295,7 +293,6 @@ void main() {
         expect(block.presetId, null); // nullable
         expect(block.name, ''); // 기본값
         expect(block.minutes, 15); // 기본값
-        expect(block, true); // 기본값
       });
 
       test('presetId가 null일 때 처리', () {
@@ -345,7 +342,6 @@ void main() {
         expect(json['presetId'], 'p-1');
         expect(json['name'], '요가');
         expect(json['minutes'], 20);
-        expect(json['selected'], false);
       });
 
       test('presetId가 null일 때 JSON에 null 포함', () {
@@ -381,7 +377,6 @@ void main() {
 
         // Then
         expect(modified.name, '수정된 이름');
-        expect(modified, false);
         expect(modified.presetId, 'p1'); // 유지
         expect(modified.minutes, 10); // 유지
       });
