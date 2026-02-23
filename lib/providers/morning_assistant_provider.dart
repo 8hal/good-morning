@@ -144,29 +144,13 @@ class MorningAssistantNotifier
       if (updated != null) {
         debugPrint('[MODIFY-PROVIDER] 새 제안: blocks=${updated.blocks.length}, '
             'anchor=${updated.anchorTime}, commute=${updated.commuteType}');
-        
-        // 수동 변경사항 보존: 기존 블록과 이름 매칭하여 수정된 시간 유지
-        final mergedBlocks = updated.blocks.map((newBlock) {
-          final existingBlock = current.blocks.firstWhere(
-            (b) => b.name == newBlock.name,
-            orElse: () => newBlock,
-          );
-          
-          // 이름이 같은 블록이 있고, AI가 기본 시간을 제안했다면 수동 변경 시간 유지
-          if (existingBlock != newBlock && existingBlock.name == newBlock.name) {
-            return newBlock.copyWith(minutes: existingBlock.minutes);
-          }
-          return newBlock;
-        }).toList();
 
-        final merged = updated.copyWith(blocks: mergedBlocks);
-        
-        for (final b in merged.blocks) {
+        for (final b in updated.blocks) {
           debugPrint('[MODIFY-PROVIDER]   블록: ${b.name} ${b.minutes}분');
         }
 
-        state = AsyncValue.data(merged);
-        debugPrint('[MODIFY-PROVIDER] state 업데이트 완료 (수동 변경사항 보존) ✓');
+        state = AsyncValue.data(updated);
+        debugPrint('[MODIFY-PROVIDER] state 업데이트 완료 ✓');
         return true;
       }
 
@@ -186,13 +170,15 @@ class MorningAssistantNotifier
         from < 0 ||
         to < 0 ||
         from >= current.blocks.length ||
-        to >= current.blocks.length) {
+        to > current.blocks.length) {
       return;
     }
 
+    // ReorderableListView는 to가 from보다 클 때 내부적으로 +1 되므로 보정
+    final adjustedTo = to > from ? to - 1 : to;
     final blocks = List<SuggestedBlock>.from(current.blocks);
     final block = blocks.removeAt(from);
-    blocks.insert(to, block);
+    blocks.insert(adjustedTo, block);
     state = AsyncValue.data(current.copyWith(blocks: blocks));
   }
 
