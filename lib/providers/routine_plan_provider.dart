@@ -37,6 +37,13 @@ class RoutinePlanNotifier extends StateNotifier<RoutinePlanState> {
     );
   }
 
+  void setPlanAt(List<BlockPreset> selectedBlocks, int currentIndex) {
+    state = RoutinePlanState(
+      selectedBlocks: selectedBlocks,
+      currentIndex: currentIndex,
+    );
+  }
+
   void advance() {
     if (!state.hasNext) return;
     state = RoutinePlanState(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/utils/datetime_utils.dart';
+import '../../models/block_preset.dart';
 import '../../providers/active_block_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/routine_plan_provider.dart';
@@ -72,12 +73,37 @@ class _NowScreenState extends ConsumerState<NowScreen> {
     if (uid == null) return;
 
     final engine = ref.read(blockEngineProvider);
+    final firestoreService = ref.read(firestoreServiceProvider);
     final state = await engine.recoverState(uid);
     if (!mounted) return;
 
     if (state.session != null) {
       ref.read(activeSessionProvider.notifier).setSession(state.session!);
+
+      // routinePlanProvider가 비어있으면 Firestore 블록 목록으로 복구
+      if (!ref.read(routinePlanProvider).hasPlan) {
+        try {
+          final allBlocks = await firestoreService.getBlocks(state.session!.id);
+          if (mounted && allBlocks.isNotEmpty) {
+            final sorted = [...allBlocks]
+              ..sort((a, b) => a.startAt.compareTo(b.startAt));
+            final presets = sorted
+                .map((b) => BlockPreset(
+                      blockType: b.blockType,
+                      defaultMinutes: b.plannedMinutes,
+                      label: b.displayLabel,
+                    ))
+                .toList();
+            final completedCount = sorted.where((b) => b.endAt != null).length;
+            final currentIndex = completedCount.clamp(0, presets.length - 1);
+            ref.read(routinePlanProvider.notifier).setPlanAt(presets, currentIndex);
+          }
+        } catch (_) {
+          // 복구 실패 시 빈 상태로 유지
+        }
+      }
     }
+
     if (state.activeBlock != null) {
       ref.read(activeBlockProvider.notifier).setBlock(state.activeBlock!);
     }
@@ -131,6 +157,7 @@ class _NowScreenState extends ConsumerState<NowScreen> {
     if (DateTime.now().isBefore(block.plannedEndAt)) return;
 
     _autoEnding = true;
+    setState(() => _busy = true);
     try {
       final engine = ref.read(blockEngineProvider);
       final ended = await engine.endBlockAuto(block);
@@ -139,6 +166,7 @@ class _NowScreenState extends ConsumerState<NowScreen> {
       await _advanceOrFinish();
     } finally {
       _autoEnding = false;
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -197,8 +225,7 @@ class _NowScreenState extends ConsumerState<NowScreen> {
   }
 
   Future<void> _advanceOrFinish() async {
-    final sessionAsync = ref.read(activeSessionProvider);
-    final session = sessionAsync.value;
+    final session = ref.read(activeSessionProvider).value;
     if (session == null) return;
 
     final planState = ref.read(routinePlanProvider);
@@ -213,9 +240,15 @@ class _NowScreenState extends ConsumerState<NowScreen> {
         sessionId: session.id,
         preset: nextPreset,
       );
-      if (started != null) {
-        ref.read(activeBlockProvider.notifier).setBlock(started);
+      if (started == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('다음 블록 시작에 실패했습니다.')),
+          );
+        }
+        return;
       }
+      ref.read(activeBlockProvider.notifier).setBlock(started);
       return;
     }
 

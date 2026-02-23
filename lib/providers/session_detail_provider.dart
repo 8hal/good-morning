@@ -10,13 +10,15 @@ class SessionDetail {
   const SessionDetail({required this.session, required this.blocks});
 }
 
-/// 세션 ID로 상세 정보 조회 (세션 + 블록)
+/// 세션 ID로 상세 정보 조회 (세션 + 블록, 병렬 로드)
 final sessionDetailProvider =
     FutureProvider.family<SessionDetail, String>((ref, sessionId) async {
   final firestoreService = ref.watch(firestoreServiceProvider);
 
-  final session = await firestoreService.getSession(sessionId);
-  final blocks = await firestoreService.getBlocks(sessionId);
+  final (session, blocks) = await (
+    firestoreService.getSession(sessionId),
+    firestoreService.getBlocks(sessionId),
+  ).wait;
 
   return SessionDetail(session: session, blocks: blocks);
 });
